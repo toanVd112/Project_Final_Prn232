@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "D:\\CNTT\\Ki8\\PRN232\\Code\\Project_Final\\Source\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{D516F63F-7273-427E-9B68-557FB52C14BE}|Project_Final_BE\\Project_Final_BE.csproj|d:\\cntt\\ki8\\prn232\\code\\project_final\\source\\project_final_be\\project_final_be.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{D516F63F-7273-427E-9B68-557FB52C14BE}|Project_Final_BE\\Project_Final_BE.csproj|solutionrelative:project_final_be\\project_final_be.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Project_Final_BE",
+              "DocumentMoniker": "D:\\CNTT\\Ki8\\PRN232\\Code\\Project_Final\\Source\\Project_Final_BE\\Project_Final_BE.csproj",
+              "RelativeDocumentMoniker": "Project_Final_BE\\Project_Final_BE.csproj",
+              "ToolTip": "D:\\CNTT\\Ki8\\PRN232\\Code\\Project_Final\\Source\\Project_Final_BE\\Project_Final_BE.csproj",
+              "RelativeToolTip": "Project_Final_BE\\Project_Final_BE.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-08-22T04:32:51.538Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
