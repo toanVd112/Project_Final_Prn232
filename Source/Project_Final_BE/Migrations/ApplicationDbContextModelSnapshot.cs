@@ -302,6 +302,9 @@ namespace Project_Final_BE.Migrations
                     b.Property<DateTime?>("ReturnDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ReturnRequestedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -314,6 +317,8 @@ namespace Project_Final_BE.Migrations
                     b.HasKey("BorrowRecordId");
 
                     b.HasIndex("BookId");
+
+                    b.HasIndex("Status", "ReturnRequestedAt");
 
                     b.HasIndex("UserId");
 

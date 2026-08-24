@@ -91,6 +91,7 @@ erDiagram
         datetime BorrowDate "Ngày mượn"
         datetime DueDate "Hạn trả (BorrowDate + 14d)"
         datetime ReturnDate "Ngày trả thực tế (nullable)"
+        datetime ReturnRequestedAt "Thời điểm Member yêu cầu trả (nullable)"
         string Status "Borrowed / Returned / Lost"
         decimal Fine "Tiền phạt trễ hạn"
         decimal CompensationFee "Phí bồi thường mất sách (nullable)"
@@ -103,7 +104,7 @@ erDiagram
 
 ## 3.2. Sơ đồ ERD chi tiết (PlantUML)
 
-File nguồn PlantUML được lưu tại: [Erd.puml](file:///d:/CNTT/Ki8/PRN232/Code/Project_Final/Document/Erd.puml)
+File nguồn PlantUML được lưu tại: [Erd.puml](./Erd.puml)
 
 ```plantuml
 @startuml Library_Identity_ERD
@@ -162,6 +163,7 @@ package "Library Business System" #FEF9E7 {
         * BorrowDate : datetime2
         * DueDate : datetime2
         ReturnDate : datetime2 (nullable)
+        ReturnRequestedAt : datetime2 (nullable)
         * Status : nvarchar(20)
         * Fine : decimal(18,2)
         CompensationFee : decimal(18,2) (nullable)
@@ -188,6 +190,8 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **Book**            | `BookId` (PK)`TitleAuthor``PriceCategoryId` (FK)`TotalCopiesAvailableCopies``RowVersion`                                            | `intnvarchar(200)``nvarchar(100)decimal(18,2)``intint``intbyte[]`                                               | Khóa chính tự tăng.Tên sách.Tác giả.Giá bìa sách (căn cứ đền bù mất sách).Khóa ngoại liên kết Category.Tổng số bản in nhập kho (TotalCopies > 0).Số bản sẵn sàng cho mượn (0 ≤ AvailableCopies ≤ TotalCopies).Concurrency token chống race condition khi cập nhật số lượng.                                                                                                                                                                                                                                                                   |
 | **ApplicationUser** | `Id` (PK)`EmailFullName``Role`                                                                                                        | `nvarchar(450)nvarchar(256)``nvarchar(100)nvarchar(50)`                                                         | Kế thừa từ`IdentityUser`.Email định danh duy nhất.Họ và tên người dùng.Vai trò người dùng (`Admin` hoặc `Member`).                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **BorrowRecord**    | `BorrowRecordId` (PK)`UserId` (FK)`BookId` (FK)`BorrowDateDueDate``ReturnDateStatus``FineCompensationFee``IsFinePaidFinePaidDate` | `intnvarchar(450)``intdatetime2``datetime2datetime2?``nvarchar(20)decimal(18,2)``decimal(18,2)?bit``datetime2?` | Khóa chính tự tăng.Khóa ngoại trỏ đến`ApplicationUser` (`DeleteBehavior.Restrict`).Khóa ngoại trỏ đến `Book` (`DeleteBehavior.Restrict`).Thời điểm mượn sách.Hạn chót trả sách (mặc định = BorrowDate + 14 ngày).Thời điểm thực tế trả sách (null nếu chưa trả).Trạng thái: `Borrowed`, `Returned`, `Lost`.Tiền phạt trễ hạn (mặc định 0).Phí bồi thường mất sách (= Book.Price khi Lost).Trạng thái đã nộp tiền phạt/bồi thường (mặc định false).Thời điểm Admin xác nhận thu tiền tại quầy. |
+
+> **Bổ sung cho luồng Member trả sách:** `BorrowRecord.ReturnRequestedAt` (`datetime2?`) lưu thời điểm Member gửi yêu cầu trả. Trường này chỉ phục vụ điều phối tại quầy; không thay đổi `Status`, không dừng tính phí quá hạn và không tăng `AvailableCopies`.
 
 ---
 
@@ -225,6 +229,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **Method** | **Route**                                              | **Request Body**        | **Response**                                         | **Quyền** |
 | ---------------- | ------------------------------------------------------------ | ----------------------------- | ---------------------------------------------------------- | ---------------- |
 | POST             | `/api/borrows`                                             | `BorrowRequestDto` {BookId} | 201 Created`BorrowRecordDto`                             | Member           |
+| PUT              | `/api/borrows/{id}/request-return`                         | —                            | 200 OK `BorrowRecordDto` (ghi nhận `ReturnRequestedAt`)  | Owner / Member   |
 | PUT              | `/api/borrows/{id}/return`                                 | —                            | 200 OK`BorrowRecordDto` (cập nhật Fine nếu trễ hạn) | Admin            |
 | PUT              | `/api/borrows/{id}/report-lost`                            | —                            | 200 OK`BorrowRecordDto` (tính CompensationFee)          | Admin            |
 | PUT              | `/api/borrows/{id}/pay-fine`                               | —                            | 200 OK`BorrowRecordDto` (IsFinePaid = true)              | Admin            |
@@ -240,7 +245,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 
 - Trích xuất `UserId` từ JWT Token của Member đang đăng nhập.
 - Kiểm tra tính hợp lệ của Member:
-  - Member không được có bất kỳ sách nào đang ở trạng thái trễ hạn (`Status == Borrowed && Now > DueDate`).
+  - Member không được có bất kỳ sách nào đang ở trạng thái trễ hạn (`Status == Borrowed && Now.Date > DueDate.Date`).
   - Member không được có bất kỳ khoản nợ phạt / bồi thường nào chưa thanh toán (`(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`).
   - Số lượng sách đang mượn (`Status == Borrowed`) của Member không vượt quá giới hạn tối đa (5 cuốn).
 - Kiểm tra `Book.AvailableCopies > 0`.
@@ -248,18 +253,26 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
   - Giảm `Book.AvailableCopies` đi 1.
   - Tạo `BorrowRecord`: `BorrowDate = Now`, `DueDate = Now + 14 ngày`, `Status = Borrowed`, `Fine = 0`, `IsFinePaid = false`.
 
-### 2. Khi xác nhận trả sách tại quầy (`PUT /api/borrows/{id}/return`)
+### 2. Khi Member gửi yêu cầu trả sách (`PUT /api/borrows/{id}/request-return`)
+
+- Chỉ Member sở hữu `BorrowRecord` mới được gửi yêu cầu.
+- Chỉ chấp nhận khi `Status == Borrowed`; gọi lại cùng yêu cầu là idempotent và không tạo thông báo trùng.
+- Ghi nhận `ReturnRequestedAt = Now` và thông báo cho Admin để ưu tiên xử lý tại quầy.
+- **Không** đổi `Status`, **không** ghi `ReturnDate`, **không** tăng `AvailableCopies` và **không** đóng băng phí trễ hạn.
+- Member vẫn phải mang sách vật lý đến quầy; `ReturnDate` chỉ được ghi khi Admin thực sự nhận sách.
+
+### 3. Khi xác nhận trả sách tại quầy (`PUT /api/borrows/{id}/return`)
 
 - Kiểm tra `BorrowRecord` tồn tại và đang ở trạng thái `Status == Borrowed`.
 - Ghi nhận `ReturnDate = Now`.
 - Tính phí phạt trễ hạn:
-  - Nếu `ReturnDate > DueDate`: `Fine = (ReturnDate - DueDate).Days * 5.000đ`.
-  - Nếu `ReturnDate <= DueDate`: `Fine = 0`.
+  - Nếu `ReturnDate.Date > DueDate.Date`: `Fine = min(Book.Price, số ngày trễ * 5.000đ)`.
+  - Nếu `ReturnDate.Date <= DueDate.Date`: `Fine = 0`.
 - Nếu `Fine == 0` thì `IsFinePaid = true`. Ngược lại nếu `Fine > 0` thì `IsFinePaid = false`.
 - Cập nhật `Status = Returned`.
 - Tăng `Book.AvailableCopies` lên 1.
 
-### 3. Khi xác nhận báo mất sách tại quầy (`PUT /api/borrows/{id}/report-lost`)
+### 4. Khi xác nhận báo mất sách tại quầy (`PUT /api/borrows/{id}/report-lost`)
 
 - Kiểm tra `BorrowRecord` tồn tại và đang ở trạng thái `Status == Borrowed`.
 - Ghi nhận `Status = Lost`.
@@ -268,7 +281,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 - Gán `IsFinePaid = false`.
 - Giảm vĩnh viễn `Book.TotalCopies` đi 1 (sách bị loại bỏ khỏi thư viện, không tăng `AvailableCopies`).
 
-### 4. Khi xác nhận thu tiền phạt / bồi thường tại quầy (`PUT /api/borrows/{id}/pay-fine`)
+### 5. Khi xác nhận thu tiền phạt / bồi thường tại quầy (`PUT /api/borrows/{id}/pay-fine`)
 
 - Kiểm tra `BorrowRecord` có nghĩa vụ tài chính chưa hoàn thành (`(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`).
 - Cập nhật `IsFinePaid = true` và `FinePaidDate = Now`.
@@ -287,7 +300,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **UC-04**  | Quản lý thể loại (Manage Category)                        | Admin — primary                      | Should Have              |
 | **UC-05**  | Tìm kiếm & Xem sách (Search Book)                          | Khách (Guest), Member — primary     | Must Have                |
 | **UC-06**  | Mượn sách trực tuyến (Borrow Book)                       | Member — primary                     | Must Have                |
-| **UC-07**  | Xác nhận trả sách tại quầy (Confirm Return Book)        | Admin — primary, Member — secondary | Must Have                |
+| **UC-07**  | Yêu cầu & Xác nhận trả sách (Request & Confirm Return)  | Member, Admin — primary             | Must Have                |
 | **UC-08**  | Xem lịch sử mượn & Phạt tạm tính (View Borrow History) | Member — primary                     | Must Have                |
 | **UC-09**  | Quản lý các bản ghi mượn (Manage Borrow Records)        | Admin — primary                      | Should Have              |
 | **UC-10**  | Xử lý báo mất sách & Bồi thường (Report Lost Book)    | Admin — primary, Member — secondary | Must Have                |
@@ -393,19 +406,19 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 
 ---
 
-### 5.2.7. UC-07 — Xác nhận trả sách tại quầy (Confirm Return Book)
+### 5.2.7. UC-07 — Yêu cầu & Xác nhận trả sách (Request & Confirm Return)
 
-| **Xác nhận trả sách tại quầy (Confirm Return Book)** |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Yêu cầu & Xác nhận trả sách (Request & Confirm Return)** |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Mã Use Case**                                           | UC-07                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Actor(s)**                                               | Admin (Thủ thư) — primary, Member — secondary (mang sách đến trả)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Mô tả tóm tắt**                                      | Thủ thư nhận lại sách vật lý tại quầy, kiểm tra và xác nhận trả sách trên hệ thống; tự động tính phí phạt nếu trả trễ hạn.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Actor(s)**                                               | Member — primary (gửi yêu cầu, mang sách đến quầy); Admin (Thủ thư) — primary (nhận và xác nhận)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Mô tả tóm tắt**                                      | Member gửi yêu cầu trả để báo trước cho thư viện; Thủ thư chỉ hoàn tất lượt trả sau khi nhận sách vật lý tại quầy và hệ thống tự động tính phí nếu trễ hạn.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Độ ưu tiên**                                         | Must Have                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| **Tiền điều kiện**                                     | • Tồn tại bản ghi`BorrowRecord` ở trạng thái `Status = Borrowed`• Admin đã đăng nhập hệ thống                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Tiền điều kiện**                                     | • Tồn tại bản ghi `BorrowRecord` ở trạng thái `Status = Borrowed` thuộc Member đang đăng nhập• Admin đã đăng nhập khi thực hiện bước xác nhận tại quầy                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Hậu điều kiện**                                      | •`BorrowRecord.Status` chuyển sang `Returned`• `Book.AvailableCopies` tăng lên 1• Phí phạt `Fine` được tính và ghi nhận nếu trễ hạn                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Luồng cơ bản (Basic Path)**                           | 1. Member mang sách đến quầy thư viện2. Admin tra cứu bản ghi mượn của Member trên hệ thống3. Admin nhấn "Xác nhận trả sách"4. Hệ thống ghi nhận`ReturnDate = Now`5. Hệ thống so sánh `ReturnDate` với `DueDate`:&nbsp;&nbsp;&nbsp;&nbsp;a. Nếu trễ hạn: Tính `Fine = số ngày trễ * 5.000đ`, gán `IsFinePaid = false`&nbsp;&nbsp;&nbsp;&nbsp;b. Nếu đúng hạn: Gán `Fine = 0`, `IsFinePaid = true`6. Hệ thống cập nhật `Status = Returned` và tăng `Book.AvailableCopies` lên 17. Hệ thống thông báo kết quả và hiển thị số tiền phạt cần thu (nếu có) |
-| **Luồng thay thế**                                       | 3a. Bản ghi không ở trạng thái`Borrowed` → Báo lỗi không hợp lệ                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Quy tắc nghiệp vụ**                                   | BR-17, BR-18, BR-20, BR-21, BR-24                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Luồng cơ bản (Basic Path)**                           | 1. Member mở lịch sử mượn và nhấn "Yêu cầu trả"2. Hệ thống ghi `ReturnRequestedAt = Now`, giữ `Status = Borrowed` và thông báo Admin3. Member mang sách đến quầy4. Admin kiểm tra sách vật lý và nhấn "Xác nhận đã nhận"5. Hệ thống ghi `ReturnDate = Now`6. Nếu trễ hạn, tính `Fine = số ngày trễ * 5.000đ`, `IsFinePaid = false`; nếu đúng hạn, `Fine = 0`, `IsFinePaid = true`7. Hệ thống cập nhật `Status = Returned`, tăng `Book.AvailableCopies` lên 1 và thông báo kết quả cho Member |
+| **Luồng thay thế**                                       | 1a. Member gửi lại yêu cầu đã tồn tại → Hệ thống trả kết quả hiện tại, không tạo thông báo trùng3a. Member mang sách trực tiếp đến quầy mà chưa gửi yêu cầu → Admin vẫn được xác nhận trả4a. Bản ghi không còn ở trạng thái `Borrowed` → Báo lỗi không hợp lệ                                                                                                                                                                                                                                                                                         |
+| **Quy tắc nghiệp vụ**                                   | BR-17, BR-18, BR-20, BR-21, BR-24, BR-28                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ---
 
@@ -498,7 +511,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **BR-11**  | Member chỉ được mượn sách khi`AvailableCopies` của sách đó lớn hơn 0.                                                              | Không thể mượn cuốn sách không còn bản in sẵn có tại thư viện.                    |
 | **BR-12**  | Thời hạn mượn tiêu chuẩn là 14 ngày tính từ ngày mượn (`DueDate = BorrowDate + 14 ngày`).                                         | Áp dụng theo thông lệ vận hành thư viện phổ biến tại Việt Nam.                      |
 | **BR-13**  | Một Member chỉ được mượn tối đa 5 cuốn sách cùng lúc (đang ở trạng thái`Borrowed`).                                            | Đảm bảo phân bổ công bằng tài nguyên sách cho toàn bộ độc giả.                   |
-| **BR-14**  | Member đang có ít nhất một cuốn sách quá hạn (`Now > DueDate` nhưng chưa trả) sẽ bị hệ thống **chặn mượn sách mới**. | Thúc đẩy độc giả hoàn trả sách đúng hạn trước khi tiếp tục sử dụng dịch vụ. |
+| **BR-14**  | Member đang có ít nhất một cuốn sách quá hạn (`Now.Date > DueDate.Date` nhưng chưa trả) sẽ bị hệ thống **chặn mượn sách mới**. | Thúc đẩy độc giả hoàn trả sách đúng hạn trước khi tiếp tục sử dụng dịch vụ. |
 | **BR-15**  | Member đang có bất kỳ khoản nợ phạt trễ hạn hoặc phí bồi thường mất sách chưa thanh toán (`(Fine > 0                            |                                                                                                 |
 | **BR-16**  | Mỗi lượt mượn (`BorrowRecord`) chỉ áp dụng cho 1 đầu sách cụ thể.                                                                  | Đơn giản hóa nghiệp vụ và phản ánh đúng một giao dịch mượn một cuốn sách.     |
 
@@ -507,12 +520,13 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **Mã BR** | **Mô tả quy tắc**                                                                                                                                                                                                                                                                        | **Căn cứ / Ý nghĩa thực tế**                                                                        |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **BR-17**  | Phí phạt trễ hạn được tính theo công thức:$\text{Fine} = \text{Số ngày trễ} \times 5.000\text{đ/ngày}$.                                                                                                                                                                          | Công thức tính phạt tuyến tính, rõ ràng và minh bạch.                                                 |
-| **BR-18**  | Nếu`ReturnDate <= DueDate` thì $\text{Fine} = 0$. Tiền phạt chỉ tính từ ngày kế tiếp ngày hết hạn.                                                                                                                                                                               | Đảm bảo độc giả trả đúng hạn không bị tính phạt.                                                  |
-| **BR-19**  | (Mở rộng) Phí phạt trễ hạn tối đa không vượt quá giá bìa sách (`Book.Price`).                                                                                                                                                                                                    | Tránh tình trạng phí phạt tăng vô hạn vượt quá giá trị của cuốn sách.                           |
+| **BR-18**  | Nếu `ReturnDate.Date <= DueDate.Date` thì $\text{Fine} = 0$. Tiền phạt chỉ tính từ ngày kế tiếp ngày hết hạn; toàn hệ thống thống nhất xét quá hạn theo ngày, không theo giờ. | Đảm bảo độc giả trả trong ngày đến hạn không bị báo quá hạn hoặc tính phạt sai lệch. |
+| **BR-19**  | Phí phạt trễ hạn tối đa không vượt quá giá bìa sách (`Fine = min(số ngày trễ × 5.000đ, Book.Price)`). | Tránh tình trạng phí phạt tăng vô hạn vượt quá giá trị của cuốn sách. |
 | **BR-20**  | `AvailableCopies` chỉ được cộng lại 1 sau khi Admin xác nhận nhận lại sách tại quầy (`Status = Returned`).                                                                                                                                                                       | Đảm bảo số lượng tồn kho chỉ tăng khi sách thực sự đã về đến thư viện.                       |
 | **BR-21**  | Các nghiệp vụ Xác nhận trả sách (`Return`), Báo mất sách (`Report Lost`) và Xác nhận thu tiền (`Pay Fine`) **bắt buộc do Admin (Thủ thư) thực hiện tại quầy**.                                                                                                  | Bảo đảm kiểm soát thực tế tài sản vật lý và dòng tiền tại quầy giao dịch.                      |
 | **BR-26**  | Khi một lượt mượn chuyển sang trạng thái`Lost` (Mất sách):• Không tăng lại `AvailableCopies`.• Giảm vĩnh viễn `Book.TotalCopies` đi 1.• Phí bồi thường `CompensationFee = Book.Price`.• Tổng tiền cần nộp = `CompensationFee + Fine` (nếu có trễ hạn). | Phản ánh đúng việc tài sản bị mất khỏi thư viện và quy trách nhiệm bồi thường cho độc giả. |
-| **BR-27**  | Khi xem danh sách mượn, hệ thống tự động tính**Phí phạt tạm tính (Estimated Fine)** theo thời gian thực nếu sách đang mượn và đã quá hạn: $\text{EstimatedFine} = \max(0, (\text{Now} - \text{DueDate}).\text{Days} \times 5.000\text{đ})$.                     | Cảnh báo độc giả và thủ thư về số tiền phạt đang tăng dần mỗi ngày trước khi bấm trả.      |
+| **BR-27**  | Khi xem danh sách mượn, hệ thống tự động tính **Phí phạt tạm tính (Estimated Fine)** theo ngày nếu sách đang mượn và đã quá hạn: $\text{EstimatedFine} = \min(\text{Book.Price}, \max(0, (\text{Now.Date} - \text{DueDate.Date}).\text{Days} \times 5.000\text{đ}))$. | Cảnh báo độc giả và thủ thư về số tiền phạt đang tăng dần mỗi ngày trước khi xác nhận trả. |
+| **BR-28**  | Member được gửi yêu cầu trả cho lượt mượn của chính mình. `ReturnRequestedAt` chỉ là tín hiệu chờ xử lý; cho đến khi Admin nhận sách vật lý và xác nhận, bản ghi vẫn là `Borrowed`, phí quá hạn vẫn tăng và kho chưa được cộng lại. | Ngăn việc Member tự hoàn tất trả sách khi tài sản chưa thực sự về thư viện, đồng thời giúp Thủ thư ưu tiên các yêu cầu đang chờ. |
 
 ## 6.5. Nhóm Phân quyền & Toàn vẹn dữ liệu (Authorization & Data Integrity)
 
@@ -541,11 +555,13 @@ stateDiagram-v2
 
     state DangMuon {
         [*] --> TrongHan : Now <= DueDate
-        TrongHan --> QuaHan : Now > DueDate (Tính EstimatedFine thời gian thực)
+        TrongHan --> QuaHan : Now.Date > DueDate.Date (Tính EstimatedFine theo ngày)
     }
 
-    DangMuon --> TraDungHan : Admin xác nhận trả đúng hạn (ReturnDate <= DueDate)
-    DangMuon --> ChoThuPhat : Admin xác nhận trả trễ hạn (ReturnDate > DueDate)
+    DangMuon --> DangMuon : Member gửi yêu cầu trả (ghi ReturnRequestedAt)
+
+    DangMuon --> TraDungHan : Admin xác nhận trả đúng hạn (ReturnDate.Date <= DueDate.Date)
+    DangMuon --> ChoThuPhat : Admin xác nhận trả trễ hạn (ReturnDate.Date > DueDate.Date)
     DangMuon --> ChoNopDenBu : Admin xác nhận Báo mất sách (Report Lost)
 
     state TraDungHan {
@@ -572,9 +588,10 @@ stateDiagram-v2
 | Trạng thái hiện tại | Sự kiện / Hành động    | Điều kiện chuyển tiếp                         | Trạng thái tiếp theo         | Thay đổi dữ liệu chính                                                                      |
 | :---------------------- | :-------------------------- | :------------------------------------------------- | :------------------------------ | :----------------------------------------------------------------------------------------------- |
 | `[*]` (Khởi tạo)    | Member mượn sách         | `AvailableCopies > 0` & Member đủ điều kiện | `DangMuon.TrongHan`           | `AvailableCopies - 1`, `DueDate = Now + 14d`                                                 |
-| `DangMuon.TrongHan`   | Thời gian trôi qua        | `Now > DueDate`                                  | `DangMuon.QuaHan`             | Tính`EstimatedFine = (Now - DueDate) * 5.000đ`                                               |
-| `DangMuon` (Bất kỳ) | Admin xác nhận trả sách | `ReturnDate <= DueDate` (Đúng hạn)            | `HoanTat_TraDungHan`          | `Status = Returned`, `Fine = 0`, `IsFinePaid = true`, `AvailableCopies + 1`              |
-| `DangMuon` (Bất kỳ) | Admin xác nhận trả sách | `ReturnDate > DueDate` (Trễ hạn)               | `ChoThuPhat.ChoNopTienPhat`   | `Status = Returned`, `Fine > 0`, `IsFinePaid = false`, `AvailableCopies + 1`             |
+| `DangMuon.TrongHan`   | Thời gian trôi qua        | `Now.Date > DueDate.Date`                       | `DangMuon.QuaHan`             | Tính `EstimatedFine = min(Book.Price, số ngày trễ * 5.000đ)` |
+| `DangMuon` (Bất kỳ) | Member gửi yêu cầu trả | Chủ sở hữu và `Status = Borrowed` | `DangMuon` (không đổi trạng thái) | Ghi `ReturnRequestedAt`; không đổi kho, không dừng phí quá hạn; thông báo Admin |
+| `DangMuon` (Bất kỳ) | Admin xác nhận trả sách | `ReturnDate.Date <= DueDate.Date` (Đúng hạn) | `HoanTat_TraDungHan`          | `Status = Returned`, `Fine = 0`, `IsFinePaid = true`, `AvailableCopies + 1`              |
+| `DangMuon` (Bất kỳ) | Admin xác nhận trả sách | `ReturnDate.Date > DueDate.Date` (Trễ hạn)  | `ChoThuPhat.ChoNopTienPhat`   | `Status = Returned`, `0 < Fine <= Book.Price`, `IsFinePaid = false`, `AvailableCopies + 1` |
 | `DangMuon` (Bất kỳ) | Admin xác nhận báo mất  | Độc giả làm mất sách                         | `ChoNopDenBu.ChoNopTienDenBu` | `Status = Lost`, `CompensationFee = Book.Price`, `IsFinePaid = false`, `TotalCopies - 1` |
 | `ChoNopTienPhat`      | Admin xác nhận thu tiền  | Độc giả nộp đủ tiền phạt                   | `DaNopPhat`                   | `IsFinePaid = true`, `FinePaidDate = Now`                                                    |
 | `ChoNopTienDenBu`     | Admin xác nhận thu tiền  | Độc giả nộp đủ tiền đền bù + phạt       | `DaNopDenBu`                  | `IsFinePaid = true`, `FinePaidDate = Now`                                                    |
@@ -589,7 +606,7 @@ Sơ đồ mô tả cơ chế tự động kiểm soát điều kiện mượn s�
 stateDiagram-v2
     [*] --> DuDieuKien : Đăng ký & Kích hoạt tài khoản
 
-    DuDieuKien --> BiChan_QuaHan : Có ít nhất 1 sách quá hạn chưa trả (Now > DueDate)
+    DuDieuKien --> BiChan_QuaHan : Có ít nhất 1 sách quá hạn chưa trả (Now.Date > DueDate.Date)
     DuDieuKien --> BiChan_NoPhat : Còn nợ tiền phạt / đền bù chưa nộp (IsFinePaid == false)
     DuDieuKien --> BiChan_ToiDa : Đang mượn đủ 5 cuốn sách (Active Borrows == 5)
 
@@ -600,6 +617,6 @@ stateDiagram-v2
 
 ### Các điều kiện chặn quyền mượn sách (Guards)
 
-1. **`BiChan_QuaHan` (Chặn do quá hạn)**: Khi Member có ít nhất 1 bản ghi `BorrowRecord` thỏa mãn `Status == Borrowed && Now > DueDate`. Hệ thống từ chối tạo lượt mượn mới và yêu cầu mang sách đến trả.
+1. **`BiChan_QuaHan` (Chặn do quá hạn)**: Khi Member có ít nhất 1 bản ghi `BorrowRecord` thỏa mãn `Status == Borrowed && Now.Date > DueDate.Date`. Hệ thống từ chối tạo lượt mượn mới và yêu cầu mang sách đến trả.
 2. **`BiChan_NoPhat` (Chặn do nợ công nợ)**: Khi Member có bất kỳ bản ghi nào có `(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`. Hệ thống yêu cầu thanh toán tại quầy trước khi được mượn tiếp.
 3. **`BiChan_ToiDa` (Chặn do đạt giới hạn số lượng)**: Khi số sách đang mượn (`Status == Borrowed`) đạt mức 5 cuốn. Độc giả phải trả bớt sách để mượn cuốn mới.

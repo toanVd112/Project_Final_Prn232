@@ -15,6 +15,7 @@ namespace Project_Final_FE.Models
         public DateTime BorrowDate { get; set; }
         public DateTime DueDate { get; set; }
         public DateTime? ReturnDate { get; set; }
+        public DateTime? ReturnRequestedAt { get; set; }
         public string Status { get; set; } = string.Empty; // Borrowed, Returned, Lost
         public decimal Fine { get; set; }
         public decimal EstimatedFine { get; set; }
@@ -22,7 +23,8 @@ namespace Project_Final_FE.Models
         public bool IsFinePaid { get; set; }
         public DateTime? FinePaidDate { get; set; }
 
-        public bool IsOverdue => Status == "Borrowed" && DateTime.UtcNow > DueDate;
+        public bool IsOverdue => Status == "Borrowed" && DateTime.UtcNow.Date > DueDate.Date;
+        public bool IsReturnRequested => Status == "Borrowed" && ReturnRequestedAt.HasValue;
         public int DaysOverdue => IsOverdue ? (int)Math.Ceiling((DateTime.UtcNow.Date - DueDate.Date).TotalDays) : 0;
     }
 

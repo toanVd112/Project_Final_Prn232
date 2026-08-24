@@ -24,7 +24,7 @@ namespace Project_Final_BE.Models
 
         [Required]
         [MaxLength(50)]
-        public string Type { get; set; } = "General"; // BorrowSuccess, AdminNewBorrow, DueDateReminder, General
+        public string Type { get; set; } = "General"; // BorrowSuccess, AdminNewBorrow, ReturnRequestSubmitted, AdminReturnRequest, ReturnConfirmed, DueDateReminder, General
 
         public bool IsRead { get; set; } = false;
 

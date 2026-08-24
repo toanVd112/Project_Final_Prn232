@@ -824,6 +824,7 @@ body {
         datetime BorrowDate "Ngày mượn"
         datetime DueDate "Hạn trả (BorrowDate + 14d)"
         datetime ReturnDate "Ngày trả thực tế (nullable)"
+        datetime ReturnRequestedAt "Thời điểm Member yêu cầu trả (nullable)"
         string Status "Borrowed / Returned / Lost"
         decimal Fine "Tiền phạt trễ hạn"
         decimal CompensationFee "Phí bồi thường mất sách (nullable)"
@@ -831,7 +832,7 @@ body {
         datetime FinePaidDate "Ngày nộp phạt (nullable)"
     }</div><hr>
 <h2 id="3.2.-s%C6%A1-%C4%91%E1%BB%93-erd-chi-ti%E1%BA%BFt-(plantuml)" tabindex="-1">3.2. Sơ đồ ERD chi tiết (PlantUML)</h2>
-<p>File nguồn PlantUML được lưu tại: [Erd.puml](file:///d:/CNTT/Ki8/PRN232/Code/Project_Final/Document/Erd.puml)</p>
+<p>File nguồn PlantUML được lưu tại: <a href="./Erd.puml">Erd.puml</a></p>
 <pre class='hljs'><code><div>@startuml Library_Identity_ERD
 !theme plain
 skinparam linetype ortho
@@ -888,6 +889,7 @@ package &quot;Library Business System&quot; #FEF9E7 {
         * BorrowDate : datetime2
         * DueDate : datetime2
         ReturnDate : datetime2 (nullable)
+        ReturnRequestedAt : datetime2 (nullable)
         * Status : nvarchar(20)
         * Fine : decimal(18,2)
         CompensationFee : decimal(18,2) (nullable)
@@ -935,9 +937,9 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>BorrowRecord</strong></td>
-<td><code>BorrowRecordId</code> (PK)<br><code>UserId</code> (FK)<br><code>BookId</code> (FK)<br><code>BorrowDate</code><br><code>DueDate</code><br><code>ReturnDate</code><br><code>Status</code><br><code>Fine</code><br><code>CompensationFee</code><br><code>IsFinePaid</code><br><code>FinePaidDate</code></td>
-<td><code>int</code><br><code>nvarchar(450)</code><br><code>int</code><br><code>datetime2</code><br><code>datetime2</code><br><code>datetime2?</code><br><code>nvarchar(20)</code><br><code>decimal(18,2)</code><br><code>decimal(18,2)?</code><br><code>bit</code><br><code>datetime2?</code></td>
-<td>Khóa chính tự tăng.<br>Khóa ngoại trỏ đến <code>ApplicationUser</code> (<code>DeleteBehavior.Restrict</code>).<br>Khóa ngoại trỏ đến <code>Book</code> (<code>DeleteBehavior.Restrict</code>).<br>Thời điểm mượn sách.<br>Hạn chót trả sách (mặc định = BorrowDate + 14 ngày).<br>Thời điểm thực tế trả sách (null nếu chưa trả).<br>Trạng thái: <code>Borrowed</code>, <code>Returned</code>, <code>Lost</code>.<br>Tiền phạt trễ hạn (mặc định 0).<br>Phí bồi thường mất sách (= Book.Price khi Lost).<br>Trạng thái đã nộp tiền phạt/bồi thường (mặc định false).<br>Thời điểm Admin xác nhận thu tiền tại quầy.</td>
+<td><code>BorrowRecordId</code> (PK)<br><code>UserId</code> (FK)<br><code>BookId</code> (FK)<br><code>BorrowDate</code><br><code>DueDate</code><br><code>ReturnDate</code><br><code>ReturnRequestedAt</code><br><code>Status</code><br><code>Fine</code><br><code>CompensationFee</code><br><code>IsFinePaid</code><br><code>FinePaidDate</code></td>
+<td><code>int</code><br><code>nvarchar(450)</code><br><code>int</code><br><code>datetime2</code><br><code>datetime2</code><br><code>datetime2?</code><br><code>datetime2?</code><br><code>nvarchar(20)</code><br><code>decimal(18,2)</code><br><code>decimal(18,2)?</code><br><code>bit</code><br><code>datetime2?</code></td>
+<td>Khóa chính tự tăng.<br>Khóa ngoại trỏ đến <code>ApplicationUser</code> (<code>DeleteBehavior.Restrict</code>).<br>Khóa ngoại trỏ đến <code>Book</code> (<code>DeleteBehavior.Restrict</code>).<br>Thời điểm mượn sách.<br>Hạn chót trả sách (mặc định = BorrowDate + 14 ngày).<br>Thời điểm thực tế trả sách (null nếu chưa trả).<br>Thời điểm Member gửi yêu cầu trả (null nếu chưa gửi); không làm thay đổi trạng thái hay tồn kho.<br>Trạng thái: <code>Borrowed</code>, <code>Returned</code>, <code>Lost</code>.<br>Tiền phạt trễ hạn (mặc định 0).<br>Phí bồi thường mất sách (= Book.Price khi Lost).<br>Trạng thái đã nộp tiền phạt/bồi thường (mặc định false).<br>Thời điểm Admin xác nhận thu tiền tại quầy.</td>
 </tr>
 </tbody>
 </table>
@@ -1090,6 +1092,13 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td>PUT</td>
+<td><code>/api/borrows/{id}/request-return</code></td>
+<td>—</td>
+<td>200 OK <code>BorrowRecordDto</code> (ghi nhận <code>ReturnRequestedAt</code>)</td>
+<td>Owner / Member</td>
+</tr>
+<tr>
+<td>PUT</td>
 <td><code>/api/borrows/{id}/return</code></td>
 <td>—</td>
 <td>200 OK <code>BorrowRecordDto</code> (cập nhật Fine nếu trễ hạn)</td>
@@ -1139,7 +1148,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 <li>Trích xuất <code>UserId</code> từ JWT Token của Member đang đăng nhập.</li>
 <li>Kiểm tra tính hợp lệ của Member:
 <ul>
-<li>Member không được có bất kỳ sách nào đang ở trạng thái trễ hạn (<code>Status == Borrowed &amp;&amp; Now &gt; DueDate</code>).</li>
+<li>Member không được có bất kỳ sách nào đang ở trạng thái trễ hạn (<code>Status == Borrowed &amp;&amp; Now.Date &gt; DueDate.Date</code>).</li>
 <li>Member không được có bất kỳ khoản nợ phạt / bồi thường nào chưa thanh toán (<code>(Fine &gt; 0 || CompensationFee &gt; 0) &amp;&amp; IsFinePaid == false</code>).</li>
 <li>Số lượng sách đang mượn (<code>Status == Borrowed</code>) của Member không vượt quá giới hạn tối đa (5 cuốn).</li>
 </ul>
@@ -1152,21 +1161,29 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </ul>
 </li>
 </ul>
-<h3 id="2.-khi-x%C3%A1c-nh%E1%BA%ADn-tr%E1%BA%A3-s%C3%A1ch-t%E1%BA%A1i-qu%E1%BA%A7y-(put-%2Fapi%2Fborrows%2F%7Bid%7D%2Freturn)" tabindex="-1">2. Khi xác nhận trả sách tại quầy (<code>PUT /api/borrows/{id}/return</code>)</h3>
+<h3 id="member-request-return" tabindex="-1">2. Khi Member gửi yêu cầu trả sách (<code>PUT /api/borrows/{id}/request-return</code>)</h3>
+<ul>
+<li>Chỉ Member sở hữu <code>BorrowRecord</code> mới được gửi yêu cầu.</li>
+<li>Chỉ chấp nhận khi <code>Status == Borrowed</code>; gọi lại cùng yêu cầu là idempotent và không tạo thông báo trùng.</li>
+<li>Ghi nhận <code>ReturnRequestedAt = Now</code> và thông báo cho Admin để ưu tiên xử lý tại quầy.</li>
+<li><strong>Không</strong> đổi <code>Status</code>, <strong>không</strong> ghi <code>ReturnDate</code>, <strong>không</strong> tăng <code>AvailableCopies</code> và <strong>không</strong> đóng băng phí trễ hạn.</li>
+<li>Member vẫn phải mang sách vật lý đến quầy; <code>ReturnDate</code> chỉ được ghi khi Admin thực sự nhận sách.</li>
+</ul>
+<h3 id="admin-confirm-return" tabindex="-1">3. Khi xác nhận trả sách tại quầy (<code>PUT /api/borrows/{id}/return</code>)</h3>
 <ul>
 <li>Kiểm tra <code>BorrowRecord</code> tồn tại và đang ở trạng thái <code>Status == Borrowed</code>.</li>
 <li>Ghi nhận <code>ReturnDate = Now</code>.</li>
 <li>Tính phí phạt trễ hạn:
 <ul>
-<li>Nếu <code>ReturnDate &gt; DueDate</code>: <code>Fine = (ReturnDate - DueDate).Days * 5.000đ</code>.</li>
-<li>Nếu <code>ReturnDate &lt;= DueDate</code>: <code>Fine = 0</code>.</li>
+<li>Nếu <code>ReturnDate.Date &gt; DueDate.Date</code>: <code>Fine = min(Book.Price, số ngày trễ * 5.000đ)</code>.</li>
+<li>Nếu <code>ReturnDate.Date &lt;= DueDate.Date</code>: <code>Fine = 0</code>.</li>
 </ul>
 </li>
 <li>Nếu <code>Fine == 0</code> thì <code>IsFinePaid = true</code>. Ngược lại nếu <code>Fine &gt; 0</code> thì <code>IsFinePaid = false</code>.</li>
 <li>Cập nhật <code>Status = Returned</code>.</li>
 <li>Tăng <code>Book.AvailableCopies</code> lên 1.</li>
 </ul>
-<h3 id="3.-khi-x%C3%A1c-nh%E1%BA%ADn-b%C3%A1o-m%E1%BA%A5t-s%C3%A1ch-t%E1%BA%A1i-qu%E1%BA%A7y-(put-%2Fapi%2Fborrows%2F%7Bid%7D%2Freport-lost)" tabindex="-1">3. Khi xác nhận báo mất sách tại quầy (<code>PUT /api/borrows/{id}/report-lost</code>)</h3>
+<h3 id="admin-report-lost" tabindex="-1">4. Khi xác nhận báo mất sách tại quầy (<code>PUT /api/borrows/{id}/report-lost</code>)</h3>
 <ul>
 <li>Kiểm tra <code>BorrowRecord</code> tồn tại và đang ở trạng thái <code>Status == Borrowed</code>.</li>
 <li>Ghi nhận <code>Status = Lost</code>.</li>
@@ -1175,7 +1192,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 <li>Gán <code>IsFinePaid = false</code>.</li>
 <li>Giảm vĩnh viễn <code>Book.TotalCopies</code> đi 1 (sách bị loại bỏ khỏi thư viện, không tăng <code>AvailableCopies</code>).</li>
 </ul>
-<h3 id="4.-khi-x%C3%A1c-nh%E1%BA%ADn-thu-ti%E1%BB%81n-ph%E1%BA%A1t-%2F-b%E1%BB%93i-th%C6%B0%E1%BB%9Dng-t%E1%BA%A1i-qu%E1%BA%A7y-(put-%2Fapi%2Fborrows%2F%7Bid%7D%2Fpay-fine)" tabindex="-1">4. Khi xác nhận thu tiền phạt / bồi thường tại quầy (<code>PUT /api/borrows/{id}/pay-fine</code>)</h3>
+<h3 id="admin-pay-fine" tabindex="-1">5. Khi xác nhận thu tiền phạt / bồi thường tại quầy (<code>PUT /api/borrows/{id}/pay-fine</code>)</h3>
 <ul>
 <li>Kiểm tra <code>BorrowRecord</code> có nghĩa vụ tài chính chưa hoàn thành (<code>(Fine &gt; 0 || CompensationFee &gt; 0) &amp;&amp; IsFinePaid == false</code>).</li>
 <li>Cập nhật <code>IsFinePaid = true</code> và <code>FinePaidDate = Now</code>.</li>
@@ -1231,8 +1248,8 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>UC-07</strong></td>
-<td>Xác nhận trả sách tại quầy (Confirm Return Book)</td>
-<td>Admin — primary, Member — secondary</td>
+<td>Yêu cầu &amp; Xác nhận trả sách (Request &amp; Confirm Return)</td>
+<td>Member, Admin — primary</td>
 <td>Must Have</td>
 </tr>
 <tr>
@@ -1551,11 +1568,11 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tbody>
 </table>
 <hr>
-<h3 id="5.2.7.-uc-07-%E2%80%94-x%C3%A1c-nh%E1%BA%ADn-tr%E1%BA%A3-s%C3%A1ch-t%E1%BA%A1i-qu%E1%BA%A7y-(confirm-return-book)" tabindex="-1">5.2.7. UC-07 — Xác nhận trả sách tại quầy (Confirm Return Book)</h3>
+<h3 id="uc-07-request-confirm-return" tabindex="-1">5.2.7. UC-07 — Yêu cầu &amp; Xác nhận trả sách (Request &amp; Confirm Return)</h3>
 <table>
 <thead>
 <tr>
-<th><strong>Xác nhận trả sách tại quầy (Confirm Return Book)</strong></th>
+<th><strong>Yêu cầu &amp; Xác nhận trả sách (Request &amp; Confirm Return)</strong></th>
 <th></th>
 </tr>
 </thead>
@@ -1566,11 +1583,11 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>Actor(s)</strong></td>
-<td>Admin (Thủ thư) — primary, Member — secondary (mang sách đến trả)</td>
+<td>Member — primary (gửi yêu cầu, mang sách đến quầy); Admin (Thủ thư) — primary (nhận và xác nhận)</td>
 </tr>
 <tr>
 <td><strong>Mô tả tóm tắt</strong></td>
-<td>Thủ thư nhận lại sách vật lý tại quầy, kiểm tra và xác nhận trả sách trên hệ thống; tự động tính phí phạt nếu trả trễ hạn.</td>
+<td>Member gửi yêu cầu trả để báo trước cho thư viện; Thủ thư chỉ hoàn tất lượt trả sau khi nhận sách vật lý tại quầy và hệ thống tự động tính phí nếu trễ hạn.</td>
 </tr>
 <tr>
 <td><strong>Độ ưu tiên</strong></td>
@@ -1586,15 +1603,15 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>Luồng cơ bản (Basic Path)</strong></td>
-<td>1. Member mang sách đến quầy thư viện<br>2. Admin tra cứu bản ghi mượn của Member trên hệ thống<br>3. Admin nhấn &quot;Xác nhận trả sách&quot;<br>4. Hệ thống ghi nhận <code>ReturnDate = Now</code><br>5. Hệ thống so sánh <code>ReturnDate</code> với <code>DueDate</code>:<br>    a. Nếu trễ hạn: Tính <code>Fine = số ngày trễ * 5.000đ</code>, gán <code>IsFinePaid = false</code><br>    b. Nếu đúng hạn: Gán <code>Fine = 0</code>, <code>IsFinePaid = true</code><br>6. Hệ thống cập nhật <code>Status = Returned</code> và tăng <code>Book.AvailableCopies</code> lên 1<br>7. Hệ thống thông báo kết quả và hiển thị số tiền phạt cần thu (nếu có)</td>
+<td>1. Member mở lịch sử mượn và nhấn &quot;Yêu cầu trả&quot;<br>2. Hệ thống ghi <code>ReturnRequestedAt = Now</code>, giữ <code>Status = Borrowed</code> và thông báo Admin<br>3. Member mang sách đến quầy<br>4. Admin kiểm tra sách vật lý và nhấn &quot;Xác nhận đã nhận&quot;<br>5. Hệ thống ghi <code>ReturnDate = Now</code><br>6. Nếu trễ hạn, tính <code>Fine = số ngày trễ * 5.000đ</code>, <code>IsFinePaid = false</code>; nếu đúng hạn, <code>Fine = 0</code>, <code>IsFinePaid = true</code><br>7. Hệ thống cập nhật <code>Status = Returned</code>, tăng <code>Book.AvailableCopies</code> lên 1 và thông báo kết quả cho Member</td>
 </tr>
 <tr>
 <td><strong>Luồng thay thế</strong></td>
-<td>3a. Bản ghi không ở trạng thái <code>Borrowed</code> → Báo lỗi không hợp lệ</td>
+<td>1a. Member gửi lại yêu cầu đã tồn tại → không tạo thông báo trùng<br>3a. Member mang sách trực tiếp đến quầy mà chưa gửi yêu cầu → Admin vẫn được xác nhận trả<br>4a. Bản ghi không còn ở trạng thái <code>Borrowed</code> → Báo lỗi không hợp lệ</td>
 </tr>
 <tr>
 <td><strong>Quy tắc nghiệp vụ</strong></td>
-<td>BR-17, BR-18, BR-20, BR-21, BR-24</td>
+<td>BR-17, BR-18, BR-20, BR-21, BR-24, BR-28</td>
 </tr>
 </tbody>
 </table>
@@ -1877,7 +1894,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>BR-14</strong></td>
-<td>Member đang có ít nhất một cuốn sách quá hạn (<code>Now &gt; DueDate</code> nhưng chưa trả) sẽ bị hệ thống <strong>chặn mượn sách mới</strong>.</td>
+<td>Member đang có ít nhất một cuốn sách quá hạn (<code>Now.Date &gt; DueDate.Date</code> nhưng chưa trả) sẽ bị hệ thống <strong>chặn mượn sách mới</strong>.</td>
 <td>Thúc đẩy độc giả hoàn trả sách đúng hạn trước khi tiếp tục sử dụng dịch vụ.</td>
 </tr>
 <tr>
@@ -1914,7 +1931,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 </tr>
 <tr>
 <td><strong>BR-19</strong></td>
-<td>(Mở rộng) Phí phạt trễ hạn tối đa không vượt quá giá bìa sách (<code>Book.Price</code>).</td>
+<td>Phí phạt trễ hạn tối đa không vượt quá giá bìa sách (<code>Fine = min(số ngày trễ × 5.000đ, Book.Price)</code>).</td>
 <td>Tránh tình trạng phí phạt tăng vô hạn vượt quá giá trị của cuốn sách.</td>
 </tr>
 <tr>
@@ -1936,6 +1953,11 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 <td><strong>BR-27</strong></td>
 <td>Khi xem danh sách mượn, hệ thống tự động tính <strong>Phí phạt tạm tính (Estimated Fine)</strong> theo thời gian thực nếu sách đang mượn và đã quá hạn: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mtext>EstimatedFine</mtext><mo>=</mo><mi>max</mi><mo>⁡</mo><mo stretchy="false">(</mo><mn>0</mn><mo separator="true">,</mo><mo stretchy="false">(</mo><mtext>Now</mtext><mo>−</mo><mtext>DueDate</mtext><mo stretchy="false">)</mo><mi mathvariant="normal">.</mi><mtext>Days</mtext><mo>×</mo><mn>5.000</mn><mtext>đ</mtext><mo stretchy="false">)</mo></mrow><annotation encoding="application/x-tex">\text{EstimatedFine} = \max(0, (\text{Now} - \text{DueDate}).\text{Days} \times 5.000\text{đ})</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.6944em;"></span><span class="mord text"><span class="mord">EstimatedFine</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mop">max</span><span class="mopen">(</span><span class="mord">0</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mopen">(</span><span class="mord text"><span class="mord">Now</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">DueDate</span></span><span class="mclose">)</span><span class="mord">.</span><span class="mord text"><span class="mord">Days</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord">5.000</span><span class="mord text"><span class="mord latin_fallback">đ</span></span><span class="mclose">)</span></span></span></span>.</td>
 <td>Cảnh báo độc giả và thủ thư về số tiền phạt đang tăng dần mỗi ngày trước khi bấm trả.</td>
+</tr>
+<tr>
+<td><strong>BR-28</strong></td>
+<td>Member được gửi yêu cầu trả cho lượt mượn của chính mình. <code>ReturnRequestedAt</code> chỉ là tín hiệu chờ xử lý; cho đến khi Admin nhận sách vật lý và xác nhận, bản ghi vẫn là <code>Borrowed</code>, phí quá hạn vẫn tăng và kho chưa được cộng lại.</td>
+<td>Ngăn việc Member tự hoàn tất trả sách khi tài sản chưa thực sự về thư viện, đồng thời giúp Thủ thư ưu tiên các yêu cầu đang chờ.</td>
 </tr>
 </tbody>
 </table>
@@ -1982,11 +2004,13 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 
     state DangMuon {
         [*] --> TrongHan : Now <= DueDate
-        TrongHan --> QuaHan : Now > DueDate (Tính EstimatedFine thời gian thực)
+        TrongHan --> QuaHan : Now.Date > DueDate.Date (Tính EstimatedFine theo ngày)
     }
 
-    DangMuon --> TraDungHan : Admin xác nhận trả đúng hạn (ReturnDate <= DueDate)
-    DangMuon --> ChoThuPhat : Admin xác nhận trả trễ hạn (ReturnDate > DueDate)
+    DangMuon --> DangMuon : Member gửi yêu cầu trả (ghi ReturnRequestedAt)
+
+    DangMuon --> TraDungHan : Admin xác nhận trả đúng hạn (ReturnDate.Date <= DueDate.Date)
+    DangMuon --> ChoThuPhat : Admin xác nhận trả trễ hạn (ReturnDate.Date > DueDate.Date)
     DangMuon --> ChoNopDenBu : Admin xác nhận Báo mất sách (Report Lost)
 
     state TraDungHan {
@@ -2027,21 +2051,28 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 <tr>
 <td style="text-align:left"><code>DangMuon.TrongHan</code></td>
 <td style="text-align:left">Thời gian trôi qua</td>
-<td style="text-align:left"><code>Now &gt; DueDate</code></td>
+<td style="text-align:left"><code>Now.Date &gt; DueDate.Date</code></td>
 <td style="text-align:left"><code>DangMuon.QuaHan</code></td>
 <td style="text-align:left">Tính <code>EstimatedFine = (Now - DueDate) * 5.000đ</code></td>
 </tr>
 <tr>
 <td style="text-align:left"><code>DangMuon</code> (Bất kỳ)</td>
+<td style="text-align:left">Member gửi yêu cầu trả</td>
+<td style="text-align:left">Chủ sở hữu và <code>Status = Borrowed</code></td>
+<td style="text-align:left"><code>DangMuon</code> (không đổi trạng thái)</td>
+<td style="text-align:left">Ghi <code>ReturnRequestedAt</code>; không đổi kho, không dừng phí quá hạn; thông báo Admin</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>DangMuon</code> (Bất kỳ)</td>
 <td style="text-align:left">Admin xác nhận trả sách</td>
-<td style="text-align:left"><code>ReturnDate &lt;= DueDate</code> (Đúng hạn)</td>
+<td style="text-align:left"><code>ReturnDate.Date &lt;= DueDate.Date</code> (Đúng hạn)</td>
 <td style="text-align:left"><code>HoanTat_TraDungHan</code></td>
 <td style="text-align:left"><code>Status = Returned</code>, <code>Fine = 0</code>, <code>IsFinePaid = true</code>, <code>AvailableCopies + 1</code></td>
 </tr>
 <tr>
 <td style="text-align:left"><code>DangMuon</code> (Bất kỳ)</td>
 <td style="text-align:left">Admin xác nhận trả sách</td>
-<td style="text-align:left"><code>ReturnDate &gt; DueDate</code> (Trễ hạn)</td>
+<td style="text-align:left"><code>ReturnDate.Date &gt; DueDate.Date</code> (Trễ hạn)</td>
 <td style="text-align:left"><code>ChoThuPhat.ChoNopTienPhat</code></td>
 <td style="text-align:left"><code>Status = Returned</code>, <code>Fine &gt; 0</code>, <code>IsFinePaid = false</code>, <code>AvailableCopies + 1</code></td>
 </tr>
@@ -2074,7 +2105,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
 <div class="mermaid">stateDiagram-v2
     [*] --> DuDieuKien : Đăng ký & Kích hoạt tài khoản
 
-    DuDieuKien --> BiChan_QuaHan : Có ít nhất 1 sách quá hạn chưa trả (Now > DueDate)
+    DuDieuKien --> BiChan_QuaHan : Có ít nhất 1 sách quá hạn chưa trả (Now.Date > DueDate.Date)
     DuDieuKien --> BiChan_NoPhat : Còn nợ tiền phạt / đền bù chưa nộp (IsFinePaid == false)
     DuDieuKien --> BiChan_ToiDa : Đang mượn đủ 5 cuốn sách (Active Borrows == 5)
 
@@ -2082,7 +2113,7 @@ Book ||--o{ BorrowRecord : &quot;được mượn [Restrict]&quot;
     BiChan_NoPhat --> DuDieuKien : Nộp đủ tiền phạt/bồi thường tại quầy (Admin xác nhận)
     BiChan_ToiDa --> DuDieuKien : Trả bớt sách (Active Borrows < 5)</div><h3 id="c%C3%A1c-%C4%91i%E1%BB%81u-ki%E1%BB%87n-ch%E1%BA%B7n-quy%E1%BB%81n-m%C6%B0%E1%BB%A3n-s%C3%A1ch-(guards)" tabindex="-1">Các điều kiện chặn quyền mượn sách (Guards)</h3>
 <ol>
-<li><strong><code>BiChan_QuaHan</code> (Chặn do quá hạn)</strong>: Khi Member có ít nhất 1 bản ghi <code>BorrowRecord</code> thỏa mãn <code>Status == Borrowed &amp;&amp; Now &gt; DueDate</code>. Hệ thống từ chối tạo lượt mượn mới và yêu cầu mang sách đến trả.</li>
+<li><strong><code>BiChan_QuaHan</code> (Chặn do quá hạn)</strong>: Khi Member có ít nhất 1 bản ghi <code>BorrowRecord</code> thỏa mãn <code>Status == Borrowed &amp;&amp; Now.Date &gt; DueDate.Date</code>. Hệ thống từ chối tạo lượt mượn mới và yêu cầu mang sách đến trả.</li>
 <li><strong><code>BiChan_NoPhat</code> (Chặn do nợ công nợ)</strong>: Khi Member có bất kỳ bản ghi nào có <code>(Fine &gt; 0 || CompensationFee &gt; 0) &amp;&amp; IsFinePaid == false</code>. Hệ thống yêu cầu thanh toán tại quầy trước khi được mượn tiếp.</li>
 <li><strong><code>BiChan_ToiDa</code> (Chặn do đạt giới hạn số lượng)</strong>: Khi số sách đang mượn (<code>Status == Borrowed</code>) đạt mức 5 cuốn. Độc giả phải trả bớt sách để mượn cuốn mới.</li>
 </ol>

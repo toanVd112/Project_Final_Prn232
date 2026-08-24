@@ -21,6 +21,7 @@ namespace Project_Final_BE.DTOs
         public DateTime BorrowDate { get; set; }
         public DateTime DueDate { get; set; }
         public DateTime? ReturnDate { get; set; }
+        public DateTime? ReturnRequestedAt { get; set; }
         public string Status { get; set; } = string.Empty; // Borrowed, Returned, Lost
         public decimal Fine { get; set; }
         public decimal EstimatedFine { get; set; }

@@ -34,10 +34,11 @@ namespace Project_Final_BE.Controllers
 
         private static decimal CalculateEstimatedFine(BorrowRecord record)
         {
-            if (record.Status == "Borrowed" && DateTime.UtcNow > record.DueDate)
+            if (record.Status == "Borrowed" && DateTime.UtcNow.Date > record.DueDate.Date)
             {
                 var daysLate = (int)Math.Ceiling((DateTime.UtcNow.Date - record.DueDate.Date).TotalDays);
-                return daysLate > 0 ? daysLate * 5000m : 0;
+                var calculatedFine = daysLate > 0 ? daysLate * 5000m : 0;
+                return Math.Min(calculatedFine, record.Book.Price); // BR-19: không vượt giá bìa
             }
             return record.Fine;
         }
@@ -61,8 +62,9 @@ namespace Project_Final_BE.Controllers
             }
 
             // BR-14: Kiểm tra Member có sách quá hạn chưa trả hay không
+            var today = DateTime.UtcNow.Date;
             var hasOverdueBook = await _context.BorrowRecords
-                .AnyAsync(br => br.UserId == userId && br.Status == "Borrowed" && DateTime.UtcNow > br.DueDate);
+                .AnyAsync(br => br.UserId == userId && br.Status == "Borrowed" && today > br.DueDate.Date);
             if (hasOverdueBook)
             {
                 return BadRequest(new { message = "Bạn đang có sách trễ hạn chưa trả. Vui lòng mang sách đến quầy hoàn trả trước khi mượn cuốn mới." });
@@ -165,6 +167,7 @@ namespace Project_Final_BE.Controllers
                     BorrowDate = borrowRecord.BorrowDate,
                     DueDate = borrowRecord.DueDate,
                     ReturnDate = borrowRecord.ReturnDate,
+                    ReturnRequestedAt = borrowRecord.ReturnRequestedAt,
                     Status = borrowRecord.Status,
                     Fine = 0,
                     EstimatedFine = 0,
@@ -219,6 +222,7 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = br.BorrowDate,
                 DueDate = br.DueDate,
                 ReturnDate = br.ReturnDate,
+                ReturnRequestedAt = br.ReturnRequestedAt,
                 Status = br.Status,
                 Fine = br.Fine,
                 EstimatedFine = CalculateEstimatedFine(br), // BR-27: Phạt tạm tính thời gian thực
@@ -263,7 +267,10 @@ namespace Project_Final_BE.Controllers
             var pageSize = query.PageSize > 0 ? query.PageSize : 10;
 
             var records = await borrowsQuery
-                .OrderByDescending(br => br.BorrowDate)
+                // Yêu cầu trả đang chờ xử lý được ưu tiên lên đầu màn hình Admin.
+                .OrderByDescending(br => br.Status == "Borrowed" && br.ReturnRequestedAt.HasValue)
+                .ThenByDescending(br => br.ReturnRequestedAt)
+                .ThenByDescending(br => br.BorrowDate)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -280,6 +287,7 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = br.BorrowDate,
                 DueDate = br.DueDate,
                 ReturnDate = br.ReturnDate,
+                ReturnRequestedAt = br.ReturnRequestedAt,
                 Status = br.Status,
                 Fine = br.Fine,
                 EstimatedFine = CalculateEstimatedFine(br),
@@ -334,6 +342,101 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = record.BorrowDate,
                 DueDate = record.DueDate,
                 ReturnDate = record.ReturnDate,
+                ReturnRequestedAt = record.ReturnRequestedAt,
+                Status = record.Status,
+                Fine = record.Fine,
+                EstimatedFine = CalculateEstimatedFine(record),
+                CompensationFee = record.CompensationFee,
+                IsFinePaid = record.IsFinePaid,
+                FinePaidDate = record.FinePaidDate
+            };
+
+            return Ok(dto);
+        }
+
+        /// <summary>
+        /// Member gửi yêu cầu trả sách. Sách vẫn ở trạng thái Borrowed và tiếp tục
+        /// được tính quá hạn cho đến khi Admin nhận sách vật lý và xác nhận tại quầy.
+        /// </summary>
+        [HttpPut("{id}/request-return")]
+        [Authorize(Roles = "Member")]
+        public async Task<ActionResult<BorrowRecordDto>> RequestReturn(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Không xác định được danh tính người dùng." });
+            }
+
+            var record = await _context.BorrowRecords
+                .Include(br => br.Book)
+                .Include(br => br.User)
+                .FirstOrDefaultAsync(br => br.BorrowRecordId == id);
+
+            if (record == null)
+            {
+                return NotFound(new { message = $"Không tìm thấy bản ghi mượn có ID = {id}." });
+            }
+
+            // BR-22: Member chỉ được thao tác trên lượt mượn của chính mình.
+            if (record.UserId != userId)
+            {
+                return Forbid();
+            }
+
+            if (record.Status != "Borrowed")
+            {
+                return BadRequest(new { message = "Chỉ có thể gửi yêu cầu trả đối với sách đang mượn." });
+            }
+
+            // PUT có tính idempotent: gửi lại cùng yêu cầu không sinh thêm thông báo.
+            if (!record.ReturnRequestedAt.HasValue)
+            {
+                var requestedAt = DateTime.UtcNow;
+                record.ReturnRequestedAt = requestedAt;
+
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = userId,
+                    Title = "Đã ghi nhận yêu cầu trả sách",
+                    Message = $"Yêu cầu trả cuốn sách '{record.Book.Title}' đã được ghi nhận. Vui lòng mang sách đến quầy; phí trễ hạn (nếu có) vẫn được tính đến lúc Thủ thư xác nhận nhận sách.",
+                    Type = "ReturnRequestSubmitted",
+                    IsRead = false,
+                    CreatedAt = requestedAt,
+                    RelatedId = record.BorrowRecordId
+                });
+
+                var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+                foreach (var admin in adminUsers)
+                {
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = admin.Id,
+                        Title = "Yêu cầu trả sách mới",
+                        Message = $"Độc giả {record.User.FullName} ({record.User.Email}) yêu cầu trả cuốn '{record.Book.Title}'. Vui lòng chỉ xác nhận sau khi đã nhận sách vật lý tại quầy.",
+                        Type = "AdminReturnRequest",
+                        IsRead = false,
+                        CreatedAt = requestedAt,
+                        RelatedId = record.BorrowRecordId
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
+            var dto = new BorrowRecordDto
+            {
+                BorrowRecordId = record.BorrowRecordId,
+                UserId = record.UserId,
+                UserFullName = record.User.FullName,
+                UserEmail = record.User.Email ?? string.Empty,
+                BookId = record.BookId,
+                BookTitle = record.Book.Title,
+                BookAuthor = record.Book.Author,
+                BorrowDate = record.BorrowDate,
+                DueDate = record.DueDate,
+                ReturnDate = record.ReturnDate,
+                ReturnRequestedAt = record.ReturnRequestedAt,
                 Status = record.Status,
                 Fine = record.Fine,
                 EstimatedFine = CalculateEstimatedFine(record),
@@ -375,7 +478,7 @@ namespace Project_Final_BE.Controllers
             if (returnDate.Date > record.DueDate.Date)
             {
                 var daysLate = (int)Math.Ceiling((returnDate.Date - record.DueDate.Date).TotalDays);
-                record.Fine = daysLate * 5000m;
+                record.Fine = Math.Min(daysLate * 5000m, record.Book.Price); // BR-19
                 record.IsFinePaid = false; // Phải nộp phạt
             }
             else
@@ -384,10 +487,37 @@ namespace Project_Final_BE.Controllers
                 record.IsFinePaid = true; // Đúng hạn không có phạt
             }
 
+            if (record.Book.AvailableCopies >= record.Book.TotalCopies)
+            {
+                return Conflict(new { message = "Dữ liệu tồn kho không hợp lệ: số bản khả dụng đã bằng tổng số bản. Vui lòng kiểm tra lại trước khi xác nhận trả." });
+            }
+
             // BR-20: Tăng lại AvailableCopies lên 1
             record.Book.AvailableCopies += 1;
 
-            await _context.SaveChangesAsync();
+            var returnMessage = record.Fine > 0
+                ? $"Thủ thư đã xác nhận nhận lại cuốn '{record.Book.Title}'. Tiền phạt trễ hạn cần nộp tại quầy: {record.Fine:N0} VNĐ."
+                : $"Thủ thư đã xác nhận nhận lại cuốn '{record.Book.Title}'. Bạn đã hoàn tất lượt mượn này.";
+
+            _context.Notifications.Add(new Notification
+            {
+                UserId = record.UserId,
+                Title = "Đã xác nhận trả sách",
+                Message = returnMessage,
+                Type = "ReturnConfirmed",
+                IsRead = false,
+                CreatedAt = returnDate,
+                RelatedId = record.BorrowRecordId
+            });
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return Conflict(new { message = "Dữ liệu sách vừa được cập nhật bởi thao tác khác. Vui lòng tải lại danh sách và xác nhận lại." });
+            }
 
             var dto = new BorrowRecordDto
             {
@@ -401,6 +531,7 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = record.BorrowDate,
                 DueDate = record.DueDate,
                 ReturnDate = record.ReturnDate,
+                ReturnRequestedAt = record.ReturnRequestedAt,
                 Status = record.Status,
                 Fine = record.Fine,
                 EstimatedFine = 0,
@@ -441,7 +572,7 @@ namespace Project_Final_BE.Controllers
             if (now.Date > record.DueDate.Date)
             {
                 var daysLate = (int)Math.Ceiling((now.Date - record.DueDate.Date).TotalDays);
-                record.Fine = daysLate * 5000m;
+                record.Fine = Math.Min(daysLate * 5000m, record.Book.Price); // BR-19
             }
             else
             {
@@ -469,6 +600,7 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = record.BorrowDate,
                 DueDate = record.DueDate,
                 ReturnDate = record.ReturnDate,
+                ReturnRequestedAt = record.ReturnRequestedAt,
                 Status = record.Status,
                 Fine = record.Fine,
                 EstimatedFine = 0,
@@ -521,6 +653,7 @@ namespace Project_Final_BE.Controllers
                 BorrowDate = record.BorrowDate,
                 DueDate = record.DueDate,
                 ReturnDate = record.ReturnDate,
+                ReturnRequestedAt = record.ReturnRequestedAt,
                 Status = record.Status,
                 Fine = record.Fine,
                 EstimatedFine = 0,

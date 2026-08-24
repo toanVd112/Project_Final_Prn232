@@ -27,6 +27,12 @@ namespace Project_Final_BE.Models
 
         public DateTime? ReturnDate { get; set; }
 
+        /// <summary>
+        /// Thời điểm Member gửi yêu cầu trả sách. Yêu cầu này không đồng nghĩa
+        /// sách đã được nhận lại; Admin vẫn phải xác nhận tại quầy.
+        /// </summary>
+        public DateTime? ReturnRequestedAt { get; set; }
+
         [Required]
         [MaxLength(20)]
         public string Status { get; set; } = "Borrowed"; // Borrowed, Returned, Lost

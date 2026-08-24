@@ -80,7 +80,8 @@
                                 <th>Ngày trả thực tế</th>
                                 <th>Trạng thái</th>
                                 <th>Tiền phạt / Đền bù</th>
-                                <th class="text-end pe-4">Thanh toán phạt</th>
+                                <th>Thanh toán phạt</th>
+                                <th class="text-end pe-4">Yêu cầu trả sách</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -154,7 +155,7 @@
                                             }
                                         }
                                     </td>
-                                    <td class="text-end pe-4">
+                                    <td>
                                         @if (item.IsFinePaid)
                                         {
                                             <span class="badge bg-success">
@@ -173,6 +174,35 @@
                                             {
                                                 <span class="badge bg-secondary">Không có phí</span>
                                             }
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        @if (item.Status == "Borrowed")
+                                        {
+                                            @if (item.IsReturnRequested)
+                                            {
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                                                    <i class="bi bi-clock-history me-1"></i>Đang chờ Thủ thư xác nhận
+                                                </span>
+                                                <div class="text-muted small mt-1">
+                                                    Gửi lúc @item.ReturnRequestedAt!.Value.ToString("dd/MM/yyyy HH:mm")
+                                                </div>
+                                                <div class="text-muted small">Vui lòng mang sách đến quầy thư viện.</div>
+                                            }
+                                            else
+                                            {
+                                                <form asp-action="RequestReturn" asp-route-id="@item.BorrowRecordId" method="post"
+                                                      onsubmit="return confirm('Gửi yêu cầu trả cuốn sách này? Lượt mượn chỉ hoàn tất sau khi Thủ thư nhận sách vật lý và xác nhận tại quầy.');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-success fw-medium">
+                                                        <i class="bi bi-box-arrow-in-left me-1"></i>Yêu cầu trả
+                                                    </button>
+                                                </form>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
                                         }
                                     </td>
                                 </tr>

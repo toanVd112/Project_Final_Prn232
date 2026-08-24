@@ -49,6 +49,7 @@ namespace Project_Final_BE.Data
                 entity.Property(br => br.Fine).HasPrecision(18, 2);
                 entity.Property(br => br.CompensationFee).HasPrecision(18, 2);
                 entity.Property(br => br.Status).IsRequired().HasMaxLength(20);
+                entity.HasIndex(br => new { br.Status, br.ReturnRequestedAt });
 
                 entity.HasOne(br => br.User)
                       .WithMany(u => u.BorrowRecords)

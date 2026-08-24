@@ -9,7 +9,7 @@
             <h2 class="fw-bold text-dark mb-1">
                 <i class="bi bi-arrow-left-right text-warning me-2"></i>Quản lý Mượn / Trả & Thu phạt tại quầy
             </h2>
-            <p class="text-muted mb-0">Xác nhận nhận lại sách vật lý, ghi nhận báo mất sách và giải trừ công nợ tại quầy thư viện.</p>
+            <p class="text-muted mb-0">Xác nhận nhận lại sách vật lý, ghi nhận báo mất sách và giải trừ công nợ tại quầy thư viện. Yêu cầu trả mới được ưu tiên lên đầu.</p>
         </div>
     </div>
 
@@ -68,7 +68,7 @@
                         {
                             @foreach (var item in Model.Borrows.Items)
                             {
-                                <tr>
+                                <tr class="@(item.IsReturnRequested ? "table-warning" : "")">
                                     <td class="ps-4 fw-bold text-muted">#@item.BorrowRecordId</td>
                                     <td>
                                         <div class="fw-bold text-dark">@item.UserFullName</div>
@@ -92,6 +92,15 @@
                                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
                                                 <i class="bi bi-hourglass-split me-1"></i>Đang mượn
                                             </span>
+                                            @if (item.IsReturnRequested)
+                                            {
+                                                <div class="badge bg-warning text-dark mt-1">
+                                                    <i class="bi bi-bell-fill me-1"></i>Member yêu cầu trả
+                                                </div>
+                                                <div class="text-muted small mt-1">
+                                                    @item.ReturnRequestedAt!.Value.ToString("dd/MM/yyyy HH:mm")
+                                                </div>
+                                            }
                                         }
                                         else if (item.Status == "Returned")
                                         {
@@ -136,10 +145,11 @@
                                             @if (item.Status == "Borrowed")
                                             {
                                                 <!-- Nút Xác nhận Trả sách -->
-                                                <form asp-action="ReturnBook" asp-route-id="@item.BorrowRecordId" method="post" class="d-inline" onsubmit="return confirm('Xác nhận nhận lại sách tại quầy cho độc giả @item.UserFullName?');">
+                                                <form asp-action="ReturnBook" asp-route-id="@item.BorrowRecordId" method="post" class="d-inline"
+                                                      onsubmit="return confirm('Chỉ xác nhận khi đã nhận sách vật lý tại quầy. Tiếp tục xác nhận trả sách?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-sm btn-success fw-medium">
-                                                        <i class="bi bi-check2-square me-1"></i> Trả sách
+                                                        <i class="bi bi-check2-square me-1"></i> @(item.IsReturnRequested ? "Xác nhận đã nhận" : "Trả sách")
                                                     </button>
                                                 </form>
 

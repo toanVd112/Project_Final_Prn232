@@ -89,5 +89,40 @@ namespace Project_Final_FE.Controllers
 
             return View(model);
         }
+
+        /// <summary>
+        /// Member gửi yêu cầu trả sách. Việc gửi yêu cầu không hoàn tất lượt mượn;
+        /// Admin chỉ xác nhận sau khi nhận sách vật lý tại quầy.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RequestReturn(int id)
+        {
+            if (!IsLoggedIn())
+            {
+                TempData["ErrorMessage"] = "Vui lòng đăng nhập để gửi yêu cầu trả sách.";
+                return RedirectToAction("Login", "Auth", new { returnUrl = Url.Action("MyBorrows", "Borrows") });
+            }
+
+            if (!IsMember())
+            {
+                TempData["ErrorMessage"] = "Chỉ tài khoản Độc giả (Member) mới có thể gửi yêu cầu trả sách.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            var response = await _apiService.PutAsync<BorrowRecordViewModel>($"borrows/{id}/request-return");
+            if (response.IsSuccess && response.Data != null)
+            {
+                TempData["SuccessMessage"] = response.Data.EstimatedFine > 0
+                    ? $"Đã gửi yêu cầu trả sách '{response.Data.BookTitle}'. Phí trễ hạn tạm tính hiện tại: {response.Data.EstimatedFine:N0} VNĐ. Vui lòng mang sách đến quầy để Thủ thư xác nhận."
+                    : $"Đã gửi yêu cầu trả sách '{response.Data.BookTitle}'. Vui lòng mang sách đến quầy để Thủ thư kiểm tra và xác nhận.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = response.ErrorMessage ?? "Không thể gửi yêu cầu trả sách. Vui lòng thử lại.";
+            }
+
+            return RedirectToAction("MyBorrows");
+        }
     }
 }

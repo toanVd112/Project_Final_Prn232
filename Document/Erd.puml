@@ -78,6 +78,7 @@ package "Library Business System" #FEF9E7 {
         * BorrowDate : datetime2
         * DueDate : datetime2
         * ReturnDate : datetime2 (nullable)
+        * ReturnRequestedAt : datetime2 (nullable)
         * Status : nvarchar(20) ["Borrowed", "Returned", "Lost"]
         * Fine : decimal(18,2)
         * CompensationFee : decimal(18,2) (nullable)
@@ -91,7 +92,7 @@ package "Library Business System" #FEF9E7 {
         * **UserId** : nvarchar(450) [FK]
         * Title : nvarchar(200)
         * Message : nvarchar(1000)
-        * Type : nvarchar(50) ["BorrowSuccess", "AdminNewBorrow", "DueDateReminder"]
+        * Type : nvarchar(50) ["BorrowSuccess", "AdminNewBorrow", "ReturnRequestSubmitted", "AdminReturnRequest", "ReturnConfirmed", "DueDateReminder"]
         * IsRead : bit
         * CreatedAt : datetime2
         * RelatedId : int (nullable)
