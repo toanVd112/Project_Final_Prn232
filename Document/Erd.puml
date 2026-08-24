@@ -1,0 +1,113 @@
+@startuml Library_Management_ERD
+!theme plain
+skinparam linetype ortho
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2B3A42
+    ArrowColor #2B3A42
+}
+
+' ==========================================
+' CÁC THỰC THỂ IDENTITY (Xác thực & Phân quyền)
+' ==========================================
+package "ASP.NET Core Identity System" #E8F8F5 {
+    entity "AspNetUsers (ApplicationUser)" as User {
+        * **Id** : nvarchar(450) [PK]
+        --
+        * UserName : nvarchar(256)
+        * NormalizedUserName : nvarchar(256)
+        * Email : nvarchar(256)
+        * NormalizedEmail : nvarchar(256)
+        * EmailConfirmed : bit
+        * PasswordHash : nvarchar(max)
+        * SecurityStamp : nvarchar(max)
+        * ConcurrencyStamp : nvarchar(max)
+        * PhoneNumber : nvarchar(max)
+        * PhoneNumberConfirmed : bit
+        * TwoFactorEnabled : bit
+        * LockoutEnd : datetimeoffset
+        * LockoutEnabled : bit
+        * AccessFailedCount : int
+        -- <i>Thuộc tính mở rộng:</i> --
+        * **FullName** : nvarchar(100)
+    }
+
+    entity "AspNetRoles" as Role {
+        * **Id** : nvarchar(450) [PK]
+        --
+        * Name : nvarchar(256)
+        * NormalizedName : nvarchar(256)
+        * ConcurrencyStamp : nvarchar(max)
+    }
+
+    entity "AspNetUserRoles" as UserRole {
+        * **UserId** : nvarchar(450) [PK, FK]
+        * **RoleId** : nvarchar(450) [PK, FK]
+    }
+}
+
+' ==========================================
+' CÁC THỰC THỂ NGHIỆP VỤ (Business Entities)
+' ==========================================
+package "Library Business System" #FEF9E7 {
+    entity "Categories" as Category {
+        * **CategoryId** : int [PK]
+        --
+        * Name : nvarchar(100) [Unique]
+    }
+
+    entity "Books" as Book {
+        * **BookId** : int [PK]
+        --
+        * Title : nvarchar(200)
+        * Author : nvarchar(100)
+        * Price : decimal(18,2)
+        * **CategoryId** : int [FK]
+        * TotalCopies : int
+        * AvailableCopies : int
+        * RowVersion : rowversion [ConcurrencyToken]
+    }
+
+    entity "BorrowRecords" as BorrowRecord {
+        * **BorrowRecordId** : int [PK]
+        --
+        * **UserId** : nvarchar(450) [FK]
+        * **BookId** : int [FK]
+        * BorrowDate : datetime2
+        * DueDate : datetime2
+        * ReturnDate : datetime2 (nullable)
+        * Status : nvarchar(20) ["Borrowed", "Returned", "Lost"]
+        * Fine : decimal(18,2)
+        * CompensationFee : decimal(18,2) (nullable)
+        * IsFinePaid : bit
+        * FinePaidDate : datetime2 (nullable)
+    }
+
+    entity "Notifications" as Notification {
+        * **NotificationId** : int [PK]
+        --
+        * **UserId** : nvarchar(450) [FK]
+        * Title : nvarchar(200)
+        * Message : nvarchar(1000)
+        * Type : nvarchar(50) ["BorrowSuccess", "AdminNewBorrow", "DueDateReminder"]
+        * IsRead : bit
+        * CreatedAt : datetime2
+        * RelatedId : int (nullable)
+    }
+}
+
+' ==========================================
+' MỐI QUAN HỆ GIỮA CÁC THỰC THỂ (Relationships)
+' ==========================================
+User ||--o{ UserRole : "có vai trò"
+Role ||--o{ UserRole : "gán cho"
+
+Category ||--o{ Book : "chứa (Delete: Restrict)"
+User ||--o{ BorrowRecord : "thực hiện mượn (Delete: Restrict)"
+Book ||--o{ BorrowRecord : "được mượn (Delete: Restrict)"
+
+User ||--o{ Notification : "nhận thông báo (Delete: Cascade)"
+
+@enduml
