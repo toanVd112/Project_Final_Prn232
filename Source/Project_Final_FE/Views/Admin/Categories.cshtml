@@ -1,0 +1,141 @@
+@model List<Project_Final_FE.Models.CategoryViewModel>
+@{
+    ViewData["Title"] = "Quản lý Thể loại sách";
+}
+
+<div class="container py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-tags-fill text-info me-2"></i>Quản lý Thể loại sách
+            </h2>
+            <p class="text-muted mb-0">Quản lý danh mục phân loại sách trong toàn bộ hệ thống thư viện.</p>
+        </div>
+        <button type="button" class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#createCategoryModal">
+            <i class="bi bi-plus-circle me-1"></i> Thêm thể loại mới
+        </button>
+    </div>
+
+    <!-- Category Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4" style="width: 100px;">Mã #</th>
+                            <th>Tên thể loại</th>
+                            <th>Số lượng đầu sách</th>
+                            <th class="text-end pe-4" style="width: 200px;">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Any())
+                        {
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-bold text-muted">#@item.CategoryId</td>
+                                    <td>
+                                        <span class="fw-semibold text-dark fs-6">@item.Name</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary-subtle text-primary border px-3 py-1">
+                                            @item.BookCount đầu sách
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#editCategoryModal"
+                                                    data-id="@item.CategoryId"
+                                                    data-name="@item.Name"
+                                                    onclick="populateEditModal(this)">
+                                                <i class="bi bi-pencil me-1"></i> Sửa
+                                            </button>
+                                            <form asp-action="DeleteCategory" asp-route-id="@item.CategoryId" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa thể loại này không?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" @(item.BookCount > 0 ? "title='Không thể xóa vì có sách tham chiếu'" : "")>
+                                                    <i class="bi bi-trash me-1"></i> Xóa
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">Chưa có thể loại nào được tạo.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Thêm thể loại mới -->
+<div class="modal fade" id="createCategoryModal" tabindex="-1" aria-labelledby="createCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="createCategoryModalLabel"><i class="bi bi-plus-circle text-primary me-2"></i>Thêm thể loại mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="CreateCategory" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Tên thể loại sách <span class="text-danger">*</span></label>
+                        <input type="text" name="Name" class="form-control" placeholder="VD: Trí tuệ nhân tạo, Kỹ năng sống..." required maxlength="100" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i> Lưu thể loại</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Cập nhật thể loại -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" id="editCategoryModalLabel"><i class="bi bi-pencil-square text-warning me-2"></i>Chỉnh sửa thể loại</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="UpdateCategory" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="editCategoryId" name="CategoryId" />
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Tên thể loại sách <span class="text-danger">*</span></label>
+                        <input type="text" id="editCategoryName" name="Name" class="form-control" required maxlength="100" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-check-lg me-1"></i> Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function populateEditModal(button) {
+            var id = button.getAttribute('data-id');
+            var name = button.getAttribute('data-name');
+            document.getElementById('editCategoryId').value = id;
+            document.getElementById('editCategoryName').value = name;
+        }
+    </script>
+}

@@ -1,0 +1,86 @@
+@model Project_Final_FE.Models.BookFormViewModel
+@{
+    var isEdit = Model.BookId.HasValue && Model.BookId.Value > 0;
+    ViewData["Title"] = isEdit ? "Chỉnh sửa thông tin sách" : "Thêm đầu sách mới";
+}
+
+<div class="container py-3">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-action="Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-action="Books">Quản lý kho sách</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@(isEdit ? "Chỉnh sửa" : "Thêm mới")</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm p-4">
+                <h4 class="fw-bold text-dark border-bottom pb-3 mb-4">
+                    <i class="bi @(isEdit ? "bi-pencil-square text-warning" : "bi-plus-circle text-primary") me-2"></i>
+                    @(isEdit ? "Chỉnh sửa thông tin sách" : "Nhập đầu sách mới vào thư viện")
+                </h4>
+
+                <form asp-action="@(isEdit ? "EditBook" : "CreateBook")" asp-route-id="@Model.BookId" method="post">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
+                    @if (isEdit)
+                    {
+                        <input type="hidden" asp-for="BookId" />
+                    }
+
+                    <div class="mb-3">
+                        <label asp-for="Title" class="form-label fw-medium"></label> <span class="text-danger">*</span>
+                        <input asp-for="Title" class="form-control" placeholder="Nhập tên đầu sách..." />
+                        <span asp-validation-for="Title" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Author" class="form-label fw-medium"></label> <span class="text-danger">*</span>
+                        <input asp-for="Author" class="form-control" placeholder="Tên tác giả..." />
+                        <span asp-validation-for="Author" class="text-danger small"></span>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="CategoryId" class="form-label fw-medium"></label> <span class="text-danger">*</span>
+                            <select asp-for="CategoryId" asp-items="Model.Categories" class="form-select">
+                                <option value="">-- Chọn thể loại --</option>
+                            </select>
+                            <span asp-validation-for="CategoryId" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Price" class="form-label fw-medium"></label> <span class="text-danger">*</span>
+                            <div class="input-group">
+                                <input asp-for="Price" class="form-control" type="number" step="1000" min="1000" placeholder="VD: 150000" />
+                                <span class="input-group-text">VNĐ</span>
+                            </div>
+                            <span asp-validation-for="Price" class="text-danger small"></span>
+                            <div class="form-text small">Dùng làm căn cứ tính phí bồi thường khi độc giả làm mất sách.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="TotalCopies" class="form-label fw-medium"></label> <span class="text-danger">*</span>
+                        <input asp-for="TotalCopies" class="form-control" type="number" min="1" placeholder="Tổng số lượng sách nhập kho..." />
+                        <span asp-validation-for="TotalCopies" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between pt-3 border-top">
+                        <a asp-action="Books" class="btn btn-light">
+                            <i class="bi bi-arrow-left me-1"></i> Quay lại
+                        </a>
+                        <button type="submit" class="btn @(isEdit ? "btn-warning" : "btn-primary") fw-bold px-4">
+                            <i class="bi bi-check-lg me-1"></i> @(isEdit ? "Cập nhật thay đổi" : "Lưu sách mới")
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

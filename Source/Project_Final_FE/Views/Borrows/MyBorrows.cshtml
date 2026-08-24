@@ -1,0 +1,194 @@
+@model Project_Final_FE.Models.MyBorrowsViewModel
+@{
+    ViewData["Title"] = "Lịch sử mượn sách của tôi";
+}
+
+<div class="container py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Lịch sử & Sách đang mượn
+            </h2>
+            <p class="text-muted mb-0">Theo dõi thời hạn trả sách, phí phạt tạm tính và trạng thái hoàn trả.</p>
+        </div>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Mượn thêm sách
+        </a>
+    </div>
+
+    <!-- Summary Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-primary-subtle text-primary p-3 me-3">
+                        <i class="bi bi-book fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Đang mượn</span>
+                        <h3 class="fw-bold mb-0 text-dark">@Model.ActiveBorrowCount / 5 <span class="fs-6 fw-normal text-muted">cuốn</span></h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-warning-subtle text-warning p-3 me-3">
+                        <i class="bi bi-exclamation-triangle fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Sách trễ hạn</span>
+                        <h3 class="fw-bold mb-0 @(Model.OverdueCount > 0 ? "text-danger" : "text-dark")">
+                            @Model.OverdueCount <span class="fs-6 fw-normal text-muted">cuốn</span>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm p-3 bg-white">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-3 bg-danger-subtle text-danger p-3 me-3">
+                        <i class="bi bi-cash-stack fs-3"></i>
+                    </div>
+                    <div>
+                        <span class="text-muted small d-block">Phí phạt / Nợ cần nộp</span>
+                        <h3 class="fw-bold mb-0 @(Model.TotalUnpaidFine > 0 ? "text-danger" : "text-success")">
+                            @Model.TotalUnpaidFine.ToString("N0") <span class="fs-6 fw-normal">VNĐ</span>
+                        </h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Borrows Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            @if (Model.Borrows.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Tên đầu sách</th>
+                                <th>Ngày mượn</th>
+                                <th>Hạn trả</th>
+                                <th>Ngày trả thực tế</th>
+                                <th>Trạng thái</th>
+                                <th>Tiền phạt / Đền bù</th>
+                                <th class="text-end pe-4">Thanh toán phạt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Borrows)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-dark">@item.BookTitle</div>
+                                        <div class="text-muted small"><i class="bi bi-person me-1"></i>@item.BookAuthor</div>
+                                    </td>
+                                    <td>@item.BorrowDate.ToString("dd/MM/yyyy")</td>
+                                    <td>
+                                        <span class="fw-medium">@item.DueDate.ToString("dd/MM/yyyy")</span>
+                                        @if (item.IsOverdue)
+                                        {
+                                            <div class="badge bg-danger small mt-1">
+                                                <i class="bi bi-alarm me-1"></i>Quá hạn @item.DaysOverdue ngày
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        @(item.ReturnDate.HasValue ? item.ReturnDate.Value.ToString("dd/MM/yyyy HH:mm") : "—")
+                                    </td>
+                                    <td>
+                                        @if (item.Status == "Borrowed")
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                                <i class="bi bi-hourglass-split me-1"></i>Đang mượn
+                                            </span>
+                                        }
+                                        else if (item.Status == "Returned")
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                                <i class="bi bi-check-circle me-1"></i>Đã trả sách
+                                            </span>
+                                        }
+                                        else if (item.Status == "Lost")
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                                <i class="bi bi-x-octagon me-1"></i>Báo mất sách
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.Status == "Borrowed")
+                                        {
+                                            @if (item.EstimatedFine > 0)
+                                            {
+                                                <span class="text-danger fw-bold">@item.EstimatedFine.ToString("N0") VNĐ</span>
+                                                <div class="text-muted small">(Tạm tính trễ hạn)</div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">0 VNĐ (Đúng hạn)</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var total = item.Fine + (item.CompensationFee ?? 0);
+                                            if (total > 0)
+                                            {
+                                                <span class="text-danger fw-bold">@total.ToString("N0") VNĐ</span>
+                                                @if (item.CompensationFee.HasValue && item.CompensationFee.Value > 0)
+                                                {
+                                                    <div class="text-muted small">(Gồm @item.CompensationFee.Value.ToString("N0")đ đền bù)</div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-success">0 VNĐ</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        @if (item.IsFinePaid)
+                                        {
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-lg me-1"></i>Đã hoàn thành
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            @if (item.EstimatedFine > 0 || item.Fine > 0 || (item.CompensationFee ?? 0) > 0)
+                                            {
+                                                <span class="badge bg-danger">
+                                                    <i class="bi bi-exclamation-circle me-1"></i>Chưa nộp tại quầy
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Không có phí</span>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-journal-x fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Bạn chưa mượn cuốn sách nào từ thư viện.</p>
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-primary btn-sm">Mượn sách ngay</a>
+                </div>
+            }
+        </div>
+    </div>
+</div>

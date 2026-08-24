@@ -1,0 +1,144 @@
+@model Project_Final_FE.Models.BookViewModel
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@{
+    ViewData["Title"] = Model.Title;
+    var userRole = HttpContextAccessor.HttpContext?.Session.GetString("UserRole");
+    var isLoggedIn = !string.IsNullOrEmpty(userRole);
+}
+
+<div class="container py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-action="Index" class="text-decoration-none">Trang chủ</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@Model.Title</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        <!-- Book Card / Overview -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm text-center p-4">
+                <div class="bg-primary-subtle text-primary rounded-4 py-5 mb-3 d-flex align-items-center justify-content-center">
+                    <i class="bi bi-book fs-1"></i>
+                </div>
+                <h4 class="fw-bold text-dark mb-1">@Model.Title</h4>
+                <p class="text-muted mb-3"><i class="bi bi-person me-1"></i>@Model.Author</p>
+
+                <div class="d-flex justify-content-center gap-2 mb-3">
+                    <span class="badge bg-light text-primary border px-3 py-2">
+                        <i class="bi bi-tag-fill me-1"></i>@Model.CategoryName
+                    </span>
+                    @if (Model.AvailableCopies > 0)
+                    {
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                            <i class="bi bi-check-circle me-1"></i>Sẵn sàng mượn
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2">
+                            <i class="bi bi-x-circle me-1"></i>Tạm hết sách
+                        </span>
+                    }
+                </div>
+
+                @if (isLoggedIn && userRole == "Member")
+                {
+                    @if (Model.AvailableCopies > 0)
+                    {
+                        <form asp-controller="Borrows" asp-action="Borrow" method="post">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="bookId" value="@Model.BookId" />
+                            <button type="submit" class="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm">
+                                <i class="bi bi-bookmark-plus me-1"></i> Mượn sách trực tuyến
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary btn-lg w-100 py-3" disabled>
+                            <i class="bi bi-x-circle me-1"></i> Hiện đã hết bản khả dụng
+                        </button>
+                    }
+                }
+                else if (isLoggedIn && userRole == "Admin")
+                {
+                    <a asp-controller="Admin" asp-action="EditBook" asp-route-id="@Model.BookId" class="btn btn-warning btn-lg w-100 py-3 fw-bold">
+                        <i class="bi bi-pencil-square me-1"></i> Chỉnh sửa sách (Admin)
+                    </a>
+                }
+                else
+                {
+                    <a asp-controller="Auth" asp-action="Login" asp-route-returnUrl="@Url.Action("Details", "Home", new { id = Model.BookId })" class="btn btn-outline-primary btn-lg w-100 py-3 fw-bold">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Đăng nhập để mượn sách
+                    </a>
+                }
+            </div>
+        </div>
+
+        <!-- Book Specifications & Borrow Rules -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm p-4 mb-4">
+                <h4 class="fw-bold text-dark border-bottom pb-3 mb-3">
+                    <i class="bi bi-info-circle me-2 text-primary"></i>Thông tin chi tiết đầu sách
+                </h4>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <span class="text-muted small d-block mb-1">Mã đầu sách</span>
+                            <span class="fw-bold text-dark fs-5">#@Model.BookId</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <span class="text-muted small d-block mb-1">Thể loại</span>
+                            <span class="fw-bold text-primary fs-5">@Model.CategoryName</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <span class="text-muted small d-block mb-1">Giá bìa sách (Căn cứ đền bù khi mất)</span>
+                            <span class="fw-bold text-success fs-5">@Model.Price.ToString("N0") VNĐ</span>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="p-3 bg-light rounded-3">
+                            <span class="text-muted small d-block mb-1">Số lượng tồn kho</span>
+                            <span class="fw-bold text-dark fs-5">Còn @Model.AvailableCopies / Tổng @Model.TotalCopies cuốn</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-shield-check me-2 text-success"></i>Quy định mượn & trả sách tại thư viện
+                </h5>
+                <ul class="list-group list-group-flush small text-secondary mb-3">
+                    <li class="list-group-item px-0 d-flex align-items-center">
+                        <i class="bi bi-calendar-check text-primary fs-5 me-3"></i>
+                        <div><strong>Thời hạn mượn:</strong> Tiêu chuẩn 14 ngày tính từ ngày gửi yêu cầu mượn trực tuyến.</div>
+                    </li>
+                    <li class="list-group-item px-0 d-flex align-items-center">
+                        <i class="bi bi-collection text-primary fs-5 me-3"></i>
+                        <div><strong>Giới hạn:</strong> Mỗi độc giả được mượn tối đa 5 cuốn sách cùng lúc.</div>
+                    </li>
+                    <li class="list-group-item px-0 d-flex align-items-center">
+                        <i class="bi bi-exclamation-octagon text-warning fs-5 me-3"></i>
+                        <div><strong>Phí trễ hạn:</strong> 5.000 VNĐ / ngày trễ hạn. Độc giả có sách quá hạn sẽ bị tạm khóa quyền mượn sách mới.</div>
+                    </li>
+                    <li class="list-group-item px-0 d-flex align-items-center">
+                        <i class="bi bi-cash-coin text-danger fs-5 me-3"></i>
+                        <div><strong>Bồi thường khi mất sách:</strong> Phí bồi thường bằng đúng 100% Giá bìa sách (@Model.Price.ToString("N0") VNĐ) cộng với phí trễ hạn (nếu có).</div>
+                    </li>
+                </ul>
+
+                <div class="d-flex justify-content-start">
+                    <a asp-action="Index" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i> Quay lại danh mục sách
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

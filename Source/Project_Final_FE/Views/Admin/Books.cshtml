@@ -1,0 +1,144 @@
+@model Project_Final_FE.Models.BookSearchViewModel
+@{
+    ViewData["Title"] = "Quản lý Kho sách";
+}
+
+<div class="container py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="bi bi-book-fill text-success me-2"></i>Quản lý Kho sách
+            </h2>
+            <p class="text-muted mb-0">Thêm mới, điều chỉnh thông tin, cập nhật số lượng và quản lý đầu sách.</p>
+        </div>
+        <a asp-action="CreateBook" class="btn btn-primary fw-semibold">
+            <i class="bi bi-plus-circle me-1"></i> Thêm đầu sách mới
+        </a>
+    </div>
+
+    <!-- Search & Filter Bar -->
+    <div class="card border-0 shadow-sm p-3 mb-4 bg-white">
+        <form method="get" asp-action="Books" class="row g-2">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" value="@Model.Search" class="form-control" placeholder="Tìm theo tên sách hoặc tác giả..." />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select name="categoryId" class="form-select">
+                    <option value="">-- Tất cả thể loại --</option>
+                    @foreach (var cat in Model.Categories)
+                    {
+                        <option value="@cat.CategoryId" selected="@(Model.CategoryId == cat.CategoryId)">
+                            @cat.Name (@cat.BookCount)
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-secondary w-100 fw-medium">
+                    <i class="bi bi-funnel me-1"></i> Lọc danh sách
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Books Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Tên đầu sách</th>
+                            <th>Tác giả</th>
+                            <th>Thể loại</th>
+                            <th>Giá bìa (Đền bù)</th>
+                            <th>Tồn kho (Khả dụng / Tổng)</th>
+                            <th class="text-end pe-4">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Books.Items.Any())
+                        {
+                            @foreach (var book in Model.Books.Items)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-dark">@book.Title</div>
+                                        <div class="text-muted small">Mã sách: #@book.BookId</div>
+                                    </td>
+                                    <td>@book.Author</td>
+                                    <td>
+                                        <span class="badge bg-light text-primary border">@book.CategoryName</span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-success">@book.Price.ToString("N0") VNĐ</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(book.AvailableCopies > 0 ? "bg-success" : "bg-danger")">
+                                            @book.AvailableCopies / @book.TotalCopies cuốn
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group">
+                                            <a asp-action="EditBook" asp-route-id="@book.BookId" class="btn btn-sm btn-outline-warning">
+                                                <i class="bi bi-pencil me-1"></i> Sửa
+                                            </a>
+                                            <form asp-action="DeleteBook" asp-route-id="@book.BookId" method="post" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa cuốn sách này khỏi hệ thống?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                    <i class="bi bi-trash me-1"></i> Xóa
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">Không tìm thấy sách nào phù hợp.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    @if (Model.Books.TotalPages > 1)
+    {
+        <nav class="mt-4" aria-label="Phân trang sách admin">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(!Model.Books.HasPreviousPage ? "disabled" : "")">
+                    <a class="page-link" asp-action="Books"
+                       asp-route-pageNumber="@(Model.Books.PageNumber - 1)"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-search="@Model.Search"
+                       asp-route-categoryId="@Model.CategoryId">Trước</a>
+                </li>
+                @for (int i = 1; i <= Model.Books.TotalPages; i++)
+                {
+                    <li class="page-item @(i == Model.Books.PageNumber ? "active" : "")">
+                        <a class="page-link" asp-action="Books"
+                           asp-route-pageNumber="@i"
+                           asp-route-pageSize="@Model.PageSize"
+                           asp-route-search="@Model.Search"
+                           asp-route-categoryId="@Model.CategoryId">@i</a>
+                    </li>
+                }
+                <li class="page-item @(!Model.Books.HasNextPage ? "disabled" : "")">
+                    <a class="page-link" asp-action="Books"
+                       asp-route-pageNumber="@(Model.Books.PageNumber + 1)"
+                       asp-route-pageSize="@Model.PageSize"
+                       asp-route-search="@Model.Search"
+                       asp-route-categoryId="@Model.CategoryId">Sau</a>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>
