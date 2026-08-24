@@ -14,6 +14,7 @@ namespace Project_Final_BE.Data
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Book> Books => Set<Book>();
         public DbSet<BorrowRecord> BorrowRecords => Set<BorrowRecord>();
+        public DbSet<Notification> Notifications => Set<Notification>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -58,6 +59,19 @@ namespace Project_Final_BE.Data
                       .WithMany(b => b.BorrowRecords)
                       .HasForeignKey(br => br.BookId)
                       .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Notification configuration
+            builder.Entity<Notification>(entity =>
+            {
+                entity.Property(n => n.Title).IsRequired().HasMaxLength(200);
+                entity.Property(n => n.Message).IsRequired().HasMaxLength(1000);
+                entity.Property(n => n.Type).IsRequired().HasMaxLength(50);
+
+                entity.HasOne(n => n.User)
+                      .WithMany(u => u.Notifications)
+                      .HasForeignKey(n => n.UserId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

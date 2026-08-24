@@ -131,9 +131,33 @@
                         }
                     </ul>
 
-                    <ul class="navbar-nav ms-auto align-items-center gap-2">
+                    <ul class="navbar-nav ms-auto align-items-center gap-3">
                         @if (isLoggedIn)
                         {
+                            <!-- Notification Bell Dropdown -->
+                            <li class="nav-item dropdown" id="notificationDropdownContainer">
+                                <a class="nav-link text-dark position-relative p-2 rounded-circle hover-bg-light" href="#" id="notificationDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Thông báo">
+                                    <i class="bi bi-bell fs-5"></i>
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge" style="font-size: 0.65rem;">
+                                        0
+                                    </span>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end shadow border-0 p-0" aria-labelledby="notificationDropdown" style="width: 360px; max-width: 90vw; border-radius: 12px; overflow: hidden;">
+                                    <div class="p-3 bg-primary text-white d-flex justify-content-between align-items-center">
+                                        <div class="fw-bold fs-6"><i class="bi bi-bell-fill me-2"></i>Thông báo</div>
+                                        <button type="button" class="btn btn-sm btn-outline-light py-0 px-2 small" onclick="markAllNotificationsAsRead(event)">
+                                            Đã đọc tất cả
+                                        </button>
+                                    </div>
+                                    <div class="list-group list-group-flush" id="notificationList" style="max-height: 380px; overflow-y: auto;">
+                                        <div class="p-4 text-center text-muted small" id="notificationEmpty">
+                                            <i class="bi bi-bell-slash fs-3 d-block mb-1 text-secondary"></i>
+                                            Chưa có thông báo nào.
+                                        </div>
+                                    </div>
+                                </div>
+                            </li>
+
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle d-flex align-items-center gap-2 text-dark" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style="width: 34px; height: 34px;">
@@ -200,6 +224,95 @@
     <!-- SweetAlert2 for rich alerts -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @if (isLoggedIn)
+    {
+        <script>
+            async function loadNotifications() {
+                try {
+                    const res = await fetch('/Notifications/GetSummary');
+                    if (!res.ok) return;
+                    const data = await res.json();
+
+                    const badge = document.getElementById('notificationBadge');
+                    const list = document.getElementById('notificationList');
+
+                    if (data.unreadCount > 0) {
+                        badge.textContent = data.unreadCount > 99 ? '99+' : data.unreadCount;
+                        badge.classList.remove('d-none');
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+
+                    if (data.notifications && data.notifications.length > 0) {
+                        list.innerHTML = data.notifications.map(n => {
+                            let icon = '<i class="bi bi-info-circle-fill text-primary fs-5"></i>';
+                            let bgClass = n.isRead ? '' : 'bg-light';
+
+                            if (n.type === 'BorrowSuccess') {
+                                icon = '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
+                            } else if (n.type === 'AdminNewBorrow') {
+                                icon = '<i class="bi bi-book-half text-primary fs-5"></i>';
+                            } else if (n.type === 'DueDateReminder') {
+                                icon = '<i class="bi bi-alarm-fill text-warning fs-5"></i>';
+                            }
+
+                            return `
+                                <div class="list-group-item list-group-item-action p-3 border-bottom ${bgClass}" onclick="markNotificationAsRead(${n.notificationId}, event)" style="cursor: pointer;">
+                                    <div class="d-flex align-items-start gap-2">
+                                        <div class="mt-1">${icon}</div>
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <span class="fw-bold small text-dark ${n.isRead ? 'text-muted' : ''}">${n.title}</span>
+                                                <span class="text-muted" style="font-size: 0.7rem;">${n.timeAgo}</span>
+                                            </div>
+                                            <p class="mb-0 text-secondary small line-clamp-2" style="font-size: 0.8rem; line-height: 1.3;">${n.message}</p>
+                                        </div>
+                                        ${!n.isRead ? '<span class="p-1 bg-primary rounded-circle align-self-center ms-1" style="width: 8px; height: 8px;"></span>' : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        list.innerHTML = `
+                            <div class="p-4 text-center text-muted small">
+                                <i class="bi bi-bell-slash fs-3 d-block mb-1 text-secondary"></i>
+                                Chưa có thông báo nào.
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    console.error('Error fetching notifications:', e);
+                }
+            }
+
+            async function markNotificationAsRead(id, event) {
+                try {
+                    await fetch(`/Notifications/MarkAsRead/${id}`, { method: 'POST' });
+                    loadNotifications();
+                } catch (e) {
+                    console.error('Error marking notification as read:', e);
+                }
+            }
+
+            async function markAllNotificationsAsRead(event) {
+                event.stopPropagation();
+                try {
+                    await fetch('/Notifications/MarkAllAsRead', { method: 'POST' });
+                    loadNotifications();
+                } catch (e) {
+                    console.error('Error marking all as read:', e);
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                loadNotifications();
+                // Tự động kiểm tra thông báo mới mỗi 30 giây
+                setInterval(loadNotifications, 30000);
+            });
+        </script>
+    }
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

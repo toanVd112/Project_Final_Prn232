@@ -12,5 +12,6 @@ namespace Project_Final_BE.Models
 
         // Navigation property
         public virtual ICollection<BorrowRecord> BorrowRecords { get; set; } = new List<BorrowRecord>();
+        public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     }
 }

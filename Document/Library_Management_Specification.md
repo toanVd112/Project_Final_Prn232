@@ -12,7 +12,8 @@
 
 Hệ thống được xây dựng theo kiến trúc RESTful API với **ASP.NET Core Web API** ở Backend và **ASP.NET Core MVC** ở Frontend, sử dụng **JWT (JSON Web Token)** kết hợp **ASP.NET Core Identity** để xác thực và phân quyền người dùng.
 
-### Mục tiêu chính của hệ thống:
+### Mục tiêu chính của hệ thống
+
 - Quản lý tập trung danh mục sách, giá tiền bìa sách và thể loại sách.
 - Tự động hóa quy trình mượn sách, kiểm soát số lượng sách khả dụng (`AvailableCopies`) theo thời gian thực và chống tranh chấp dữ liệu (Race Condition).
 - Quy trình trả sách, báo mất sách và thu tiền phạt minh bạch, chặt chẽ tại quầy thư viện do Quản trị viên/Thủ thư xác nhận.
@@ -33,6 +34,7 @@ Hệ thống được xây dựng theo kiến trúc RESTful API với **ASP.NET 
 # 3. Sơ đồ thực thể quan hệ (ERD & Data Model)
 
 Hệ thống được thiết kế theo mô hình **Code-First với ASP.NET Core Identity và Entity Framework Core 8**, bao gồm 2 phân hệ thực thể chính:
+
 1. **Phân hệ Identity (Xác thực & Phân quyền)**: `AspNetUsers` (kế thừa qua `ApplicationUser`), `AspNetRoles`, `AspNetUserRoles`.
 2. **Phân hệ Nghiệp vụ Thư viện (Library Business)**: `Category`, `Book`, `BorrowRecord`.
 
@@ -234,7 +236,8 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 
 ## 4.5. Logic nghiệp vụ cốt lõi tại Backend
 
-### 1. Khi tạo lượt mượn (`POST /api/borrows`):
+### 1. Khi tạo lượt mượn (`POST /api/borrows`)
+
 - Trích xuất `UserId` từ JWT Token của Member đang đăng nhập.
 - Kiểm tra tính hợp lệ của Member:
   - Member không được có bất kỳ sách nào đang ở trạng thái trễ hạn (`Status == Borrowed && Now > DueDate`).
@@ -245,7 +248,8 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
   - Giảm `Book.AvailableCopies` đi 1.
   - Tạo `BorrowRecord`: `BorrowDate = Now`, `DueDate = Now + 14 ngày`, `Status = Borrowed`, `Fine = 0`, `IsFinePaid = false`.
 
-### 2. Khi xác nhận trả sách tại quầy (`PUT /api/borrows/{id}/return`):
+### 2. Khi xác nhận trả sách tại quầy (`PUT /api/borrows/{id}/return`)
+
 - Kiểm tra `BorrowRecord` tồn tại và đang ở trạng thái `Status == Borrowed`.
 - Ghi nhận `ReturnDate = Now`.
 - Tính phí phạt trễ hạn:
@@ -255,7 +259,8 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 - Cập nhật `Status = Returned`.
 - Tăng `Book.AvailableCopies` lên 1.
 
-### 3. Khi xác nhận báo mất sách tại quầy (`PUT /api/borrows/{id}/report-lost`):
+### 3. Khi xác nhận báo mất sách tại quầy (`PUT /api/borrows/{id}/report-lost`)
+
 - Kiểm tra `BorrowRecord` tồn tại và đang ở trạng thái `Status == Borrowed`.
 - Ghi nhận `Status = Lost`.
 - Tính phí phạt trễ hạn tính đến ngày báo mất (nếu ngày hiện tại đã quá `DueDate`).
@@ -263,7 +268,8 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 - Gán `IsFinePaid = false`.
 - Giảm vĩnh viễn `Book.TotalCopies` đi 1 (sách bị loại bỏ khỏi thư viện, không tăng `AvailableCopies`).
 
-### 4. Khi xác nhận thu tiền phạt / bồi thường tại quầy (`PUT /api/borrows/{id}/pay-fine`):
+### 4. Khi xác nhận thu tiền phạt / bồi thường tại quầy (`PUT /api/borrows/{id}/pay-fine`)
+
 - Kiểm tra `BorrowRecord` có nghĩa vụ tài chính chưa hoàn thành (`(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`).
 - Cập nhật `IsFinePaid = true` và `FinePaidDate = Now`.
 
@@ -456,7 +462,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **Actor(s)** | Admin (Thủ thư) — primary |
 | **Mô tả tóm tắt** | Sau khi độc giả thanh toán tiền phạt trễ hạn hoặc phí bồi thường mất sách tại quầy, thủ thư xác nhận trên hệ thống để giải trừ công nợ cho độc giả. |
 | **Độ ưu tiên** | Must Have |
-| **Tiền điều kiện** | • Bản ghi `BorrowRecord` có `(Fine > 0 || CompensationFee > 0)` và `IsFinePaid == false`<br>• Độc giả đã nộp đủ tiền tại quầy |
+| **Tiền điều kiện** | • Bản ghi `BorrowRecord` có `(Fine > 0 | | CompensationFee > 0)` và `IsFinePaid == false`<br>• Độc giả đã nộp đủ tiền tại quầy |
 | **Hậu điều kiện** | • `BorrowRecord.IsFinePaid` chuyển thành `true`<br>• `BorrowRecord.FinePaidDate` được ghi nhận thời điểm hiện tại<br>• Member được mở lại quyền mượn sách mới (nếu thỏa mãn các điều kiện khác) |
 | **Luồng cơ bản (Basic Path)** | 1. Member thanh toán tiền phạt/bồi thường tại quầy<br>2. Admin chọn bản ghi mượn tương ứng và nhấn "Xác nhận đã thu tiền"<br>3. Hệ thống cập nhật `IsFinePaid = true`, lưu `FinePaidDate = Now`<br>4. Hệ thống thông báo thu tiền thành công và in/hiển thị biên nhận |
 | **Quy tắc nghiệp vụ** | BR-15, BR-21 |
@@ -493,7 +499,7 @@ Book ||--o{ BorrowRecord : "được mượn [Restrict]"
 | **BR-12** | Thời hạn mượn tiêu chuẩn là 14 ngày tính từ ngày mượn (`DueDate = BorrowDate + 14 ngày`). | Áp dụng theo thông lệ vận hành thư viện phổ biến tại Việt Nam. |
 | **BR-13** | Một Member chỉ được mượn tối đa 5 cuốn sách cùng lúc (đang ở trạng thái `Borrowed`). | Đảm bảo phân bổ công bằng tài nguyên sách cho toàn bộ độc giả. |
 | **BR-14** | Member đang có ít nhất một cuốn sách quá hạn (`Now > DueDate` nhưng chưa trả) sẽ bị hệ thống **chặn mượn sách mới**. | Thúc đẩy độc giả hoàn trả sách đúng hạn trước khi tiếp tục sử dụng dịch vụ. |
-| **BR-15** | Member đang có bất kỳ khoản nợ phạt trễ hạn hoặc phí bồi thường mất sách chưa thanh toán (`(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`) sẽ bị hệ thống **chặn mượn sách mới**. | Đảm bảo độc giả hoàn thành đầy đủ nghĩa vụ tài chính tại quầy trước khi mượn tiếp. |
+| **BR-15** | Member đang có bất kỳ khoản nợ phạt trễ hạn hoặc phí bồi thường mất sách chưa thanh toán (`(Fine > 0 | | CompensationFee > 0) && IsFinePaid == false`) sẽ bị hệ thống **chặn mượn sách mới**. | Đảm bảo độc giả hoàn thành đầy đủ nghĩa vụ tài chính tại quầy trước khi mượn tiếp. |
 | **BR-16** | Mỗi lượt mượn (`BorrowRecord`) chỉ áp dụng cho 1 đầu sách cụ thể. | Đơn giản hóa nghiệp vụ và phản ánh đúng một giao dịch mượn một cuốn sách. |
 
 ## 6.4. Nhóm Trả sách, Báo mất & Phạt (Return, Lost & Fine Policy)
@@ -561,7 +567,7 @@ stateDiagram-v2
     DaNopDenBu --> [*]
 ```
 
-### Bảng chuyển đổi trạng thái của `BorrowRecord`:
+### Bảng chuyển đổi trạng thái của `BorrowRecord`
 
 | Trạng thái hiện tại | Sự kiện / Hành động | Điều kiện chuyển tiếp | Trạng thái tiếp theo | Thay đổi dữ liệu chính |
 | :--- | :--- | :--- | :--- | :--- |
@@ -592,7 +598,8 @@ stateDiagram-v2
     BiChan_ToiDa --> DuDieuKien : Trả bớt sách (Active Borrows < 5)
 ```
 
-### Các điều kiện chặn quyền mượn sách (Guards):
+### Các điều kiện chặn quyền mượn sách (Guards)
+
 1. **`BiChan_QuaHan` (Chặn do quá hạn)**: Khi Member có ít nhất 1 bản ghi `BorrowRecord` thỏa mãn `Status == Borrowed && Now > DueDate`. Hệ thống từ chối tạo lượt mượn mới và yêu cầu mang sách đến trả.
 2. **`BiChan_NoPhat` (Chặn do nợ công nợ)**: Khi Member có bất kỳ bản ghi nào có `(Fine > 0 || CompensationFee > 0) && IsFinePaid == false`. Hệ thống yêu cầu thanh toán tại quầy trước khi được mượn tiếp.
 3. **`BiChan_ToiDa` (Chặn do đạt giới hạn số lượng)**: Khi số sách đang mượn (`Status == Borrowed`) đạt mức 5 cuốn. Độc giả phải trả bớt sách để mượn cuốn mới.

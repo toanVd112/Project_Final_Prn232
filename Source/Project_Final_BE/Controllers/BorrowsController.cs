@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Project_Final_BE.Data;
@@ -18,10 +19,12 @@ namespace Project_Final_BE.Controllers
     public class BorrowsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public BorrowsController(ApplicationDbContext context)
+        public BorrowsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         private string? GetCurrentUserId()
@@ -114,9 +117,41 @@ namespace Project_Final_BE.Controllers
 
                 _context.BorrowRecords.Add(borrowRecord);
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
 
                 var user = await _context.Users.FindAsync(userId);
+
+                // 1. Tạo thông báo cho Member mượn sách thành công
+                var memberNotification = new Notification
+                {
+                    UserId = userId,
+                    Title = "Mượn sách thành công",
+                    Message = $"Bạn đã mượn thành công cuốn sách '{book.Title}'. Hạn trả là ngày {borrowRecord.DueDate:dd/MM/yyyy}.",
+                    Type = "BorrowSuccess",
+                    IsRead = false,
+                    CreatedAt = now,
+                    RelatedId = borrowRecord.BorrowRecordId
+                };
+                _context.Notifications.Add(memberNotification);
+
+                // 2. Tạo thông báo cho các tài khoản Admin
+                var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+                foreach (var admin in adminUsers)
+                {
+                    var adminNotification = new Notification
+                    {
+                        UserId = admin.Id,
+                        Title = "Lượt mượn sách mới",
+                        Message = $"Độc giả {user?.FullName ?? "N/A"} ({user?.Email}) vừa mượn cuốn sách '{book.Title}'.",
+                        Type = "AdminNewBorrow",
+                        IsRead = false,
+                        CreatedAt = now,
+                        RelatedId = borrowRecord.BorrowRecordId
+                    };
+                    _context.Notifications.Add(adminNotification);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
                 var resultDto = new BorrowRecordDto
                 {
